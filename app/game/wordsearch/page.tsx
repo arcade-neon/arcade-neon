@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { ArrowLeft, RefreshCw, Trophy, Search, Cpu, Zap, Layers, Timer, Share2, Medal, Cloud, Check, Globe } from 'lucide-react';
 import { db, auth } from '@/lib/firebase';
 import { collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from 'firebase/firestore';
-// IMPORTAMOS EL ANUNCIO
 import AdSpace from '@/components/AdSpace';
 
 // --- CONFIGURACIÓN ---
@@ -199,21 +198,39 @@ export default function SopaLetrasPro() {
     return { r: lastR, c: lastC };
   };
 
-  useEffect(() => {
-    const handleMouseUp = () => {
-      if (selection.start && selection.current) checkSelection(selection.start, selection.current);
-      setSelection({ start: null, end: null, current: null });
-    };
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, [selection, words, found]);
-
-  const handleMouseDown = (r, c) => {
+  // --- NUEVA LÓGICA DE CONTROL (MÓVIL + PC) ---
+  
+  // 1. Empezar selección (Tocar o Clicar)
+  const handlePointerDown = (r, c, e) => {
     if (gameState !== 'playing') return;
+    // Evita que el navegador intente hacer scroll o seleccionar texto
+    e.preventDefault(); 
     setSelection({ start: { r, c }, current: { r, c }, end: null });
   };
-  const handleMouseEnter = (r, c) => {
-    if (selection.start) setSelection({ ...selection, current: { r, c } });
+
+  // 2. Moverse (Arrastrar)
+  const handlePointerMove = (e) => {
+    if (!selection.start || gameState !== 'playing') return;
+    e.preventDefault();
+
+    // Truco para móvil: Localizar elemento bajo el dedo
+    const target = document.elementFromPoint(e.clientX, e.clientY);
+    
+    // Leemos las coordenadas guardadas en el HTML (data-r, data-c)
+    const r = target?.getAttribute('data-r');
+    const c = target?.getAttribute('data-c');
+
+    if (r !== null && c !== null) {
+      setSelection(prev => ({ ...prev, current: { r: Number(r), c: Number(c) } }));
+    }
+  };
+
+  // 3. Soltar (Terminar selección)
+  const handlePointerUp = () => {
+    if (selection.start && selection.current) {
+      checkSelection(selection.start, selection.current);
+    }
+    setSelection({ start: null, end: null, current: null });
   };
 
   const checkSelection = (start, end) => {
@@ -224,14 +241,19 @@ export default function SopaLetrasPro() {
     if (steps === 0) return;
     const stepR = dr === 0 ? 0 : dr / Math.abs(dr);
     const stepC = dc === 0 ? 0 : dc / Math.abs(dc);
+    
+    // Solo permitimos horizontal, vertical o diagonal perfecta
     if (Math.abs(dr) !== Math.abs(dc) && dr !== 0 && dc !== 0) return;
+    
     for (let i = 0; i <= steps; i++) {
       selectedWord += grid[start.r + stepR * i][start.c + stepC * i];
     }
+    
     const reversed = selectedWord.split('').reverse().join('');
     let match = null;
     if (words.includes(selectedWord) && !found.includes(selectedWord)) match = selectedWord;
     else if (words.includes(reversed) && !found.includes(reversed)) match = reversed;
+    
     if (match) {
       const newFound = [...found, match];
       setFound(newFound);
@@ -267,7 +289,7 @@ export default function SopaLetrasPro() {
           achievements: earned
         });
         setSaveStatus('saved');
-        fetchLeaderboard(); // Actualizar ranking al guardar
+        fetchLeaderboard(); 
       } else {
         setSaveStatus('error');
       }
@@ -307,7 +329,9 @@ export default function SopaLetrasPro() {
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center font-mono text-white p-4 select-none overflow-hidden">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center font-mono text-white p-4 select-none overflow-hidden touch-none" 
+    onPointerUp={handlePointerUp}> 
+    {/* ^ Listener global para soltar el dedo fuera del grid */}
       
       {/* Header */}
       <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-20">
@@ -389,18 +413,32 @@ export default function SopaLetrasPro() {
         </div>
       )}
 
-      {/* JUEGO */}
+      {/* JUEGO (MODIFICADO PARA MÓVIL) */}
       {(gameState === 'playing' || gameState === 'won') && (
         <div className="flex flex-col items-center z-10 w-full max-w-xl animate-in fade-in-up">
-          <div ref={gridRef} className="bg-slate-900/80 p-2 rounded-xl border border-slate-700 shadow-2xl backdrop-blur-md mb-6 touch-none" onMouseLeave={() => setSelection({ ...selection, current: null })}>
-            <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)` }}>
+          
+          {/* CONTENEDOR GRID: touch-none evita scroll */}
+          <div 
+            ref={gridRef} 
+            className="bg-slate-900/80 p-2 rounded-xl border border-slate-700 shadow-2xl backdrop-blur-md mb-6 touch-none select-none" 
+            onPointerMove={handlePointerMove}
+          >
+            <div className="grid gap-1 touch-none" style={{ gridTemplateColumns: `repeat(${gridSize}, 1fr)` }}>
               {grid.map((row, r) => row.map((letter, c) => (
-                <div key={`${r}-${c}`} onMouseDown={() => handleMouseDown(r, c)} onMouseEnter={() => handleMouseEnter(r, c)} className={`w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center text-base sm:text-lg lg:text-xl font-bold rounded-md cursor-pointer select-none ${getCellClass(r, c)}`}>
+                <div 
+                  key={`${r}-${c}`} 
+                  // GUARDAMOS COORDENADAS PARA LEERLAS AL ARRASTRAR
+                  data-r={r}
+                  data-c={c}
+                  // POINTER DOWN INICIA EL TRAZO
+                  onPointerDown={(e) => handlePointerDown(r, c, e)}
+                  className={`w-8 h-8 sm:w-10 sm:h-10 lg:w-11 lg:h-11 flex items-center justify-center text-base sm:text-lg lg:text-xl font-bold rounded-md cursor-pointer select-none touch-none ${getCellClass(r, c)}`}>
                   {letter}
                 </div>
               )))}
             </div>
           </div>
+          
           <div className="flex flex-wrap justify-center gap-2 w-full px-4">
             {words.map((word) => (
               <div key={word} className={`px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wider border transition-all duration-500 ${found.includes(word) ? 'bg-green-500 text-black border-green-500 shadow-lg scale-105' : 'bg-slate-900/50 border-slate-700 text-slate-500'}`}>
@@ -462,8 +500,6 @@ export default function SopaLetrasPro() {
             </button>
           </div>
 
-          {/* 💰 PUBLICIDAD NO INTRUSIVA */}
-          {/* Está al final del todo. Si el usuario quiere salir, ya ha visto los botones arriba. */}
           <div className="w-full max-w-sm flex-shrink-0 opacity-80 hover:opacity-100 transition-opacity">
             <AdSpace type="banner" />
           </div>

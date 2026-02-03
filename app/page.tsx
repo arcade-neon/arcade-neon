@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 // IMPORTAMOS TODOS LOS ICONOS NECESARIOS
-import { Grid3X3, Search, LogOut, Share2, User, Trophy, Scissors, LayoutGrid, Activity } from 'lucide-react';
+import { Gamepad2, Ghost, Grid3X3, Search, LogOut, Share2, User, Trophy, Scissors, LayoutGrid, Activity, Skull } from 'lucide-react';
 import AdSpace from '@/components/AdSpace';
 
 export default function Dashboard() {
@@ -168,6 +168,28 @@ export default function Dashboard() {
             <div className="absolute top-4 right-4 bg-purple-900/50 text-[10px] px-3 py-1 rounded-full text-purple-300 font-bold border border-purple-500/20">RANKING</div>
           </div>
         </Link>
+
+{/* TARJETA EL AHORCADO (DISEÑO CUADRADO UNIFICADO) */}
+          <Link href="/game/hangman" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+             
+             {/* EFECTO DE FONDO */}
+             <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-pink-500/20"></div>
+             
+             {/* ICONO CENTRADO */}
+             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
+               <Skull className="w-10 h-10 text-pink-500" />
+             </div>
+             
+             {/* TEXTO CENTRADO */}
+             <div className="text-center relative z-10">
+               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">EL AHORCADO</h2>
+               <div className="flex items-center justify-center gap-2">
+                  <span className="px-2 py-0.5 bg-pink-900/30 border border-pink-500/30 rounded text-[10px] text-pink-400 font-bold tracking-wider uppercase">
+                    RANKING
+                  </span>
+               </div>
+             </div>
+          </Link>
 
       </div>
     </main>
