@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 // IMPORTAMOS TODOS LOS ICONOS NECESARIOS
-import { Gamepad2, Ghost, Grid3X3, Search, LogOut, Share2, User, Trophy, Scissors, LayoutGrid, Activity, Skull } from 'lucide-react';
+import { Gamepad2, Bomb, Ghost, Grid3X3, Search, LogOut, Share2, User, Trophy, Scissors, LayoutGrid, Activity, Skull } from 'lucide-react';
 import AdSpace from '@/components/AdSpace';
 
 export default function Dashboard() {
@@ -191,6 +191,28 @@ export default function Dashboard() {
              </div>
           </Link>
 
+{/* TARJETA CHAMI LA TÓXICA */}
+          <Link href="/game/minesweeper" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+             
+             {/* EFECTO DE FONDO */}
+             <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-red-500/20"></div>
+             
+             {/* ICONO CENTRADO */}
+             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-red-500/50 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all relative z-10">
+               <Bomb className="w-10 h-10 text-red-500" />
+             </div>
+             
+             {/* TEXTO CENTRADO */}
+             <div className="text-center relative z-10">
+               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">CHAMI LA TÓXICA</h2>
+               <div className="flex items-center justify-center gap-2">
+                  <span className="px-2 py-0.5 bg-red-900/30 border border-red-500/30 rounded text-[10px] text-red-400 font-bold tracking-wider uppercase">
+                    CUIDADO QUE EXPLOTA
+                  </span>
+               </div>
+             </div>
+          </Link>
+          
       </div>
     </main>
   );
