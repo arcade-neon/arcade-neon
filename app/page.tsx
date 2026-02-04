@@ -1,219 +1,204 @@
+// @ts-nocheck
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-// IMPORTAMOS TODOS LOS ICONOS NECESARIOS
-import { Gamepad2, Bomb, Ghost, Grid3X3, Search, LogOut, Share2, User, Trophy, Scissors, LayoutGrid, Activity, Skull } from 'lucide-react';
+import { 
+  Gamepad2, User, Trophy, Search, Hash, 
+  Grid3X3, Video, Gamepad, Ghost, Swords, 
+  Skull, Type, Activity, Bomb, LayoutList, // <--- AHORA SÍ ESTÁ AÑADIDO
+  Brain, Circle, Share2
+} from 'lucide-react';
+import { auth } from '@/lib/firebase';
 import AdSpace from '@/components/AdSpace';
 
-export default function Dashboard() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default function Home() {
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        router.push('/login');
-      } else {
-        setUser(currentUser);
-      }
-      setLoading(false);
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      setUser(u);
     });
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/login');
+  const scrollToGames = () => {
+    const section = document.getElementById('games-section');
+    if (section) section.scrollIntoView({ behavior: 'smooth' });
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
-        <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
   return (
-    <main className="min-h-screen bg-[#020617] text-white font-mono p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-4 font-mono select-none overflow-x-hidden">
       
-      {/* FONDO ANIMADO */}
-      <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+      {/* BANNER PUBLICIDAD SUPERIOR */}
+      <div className="w-full max-w-4xl h-24 bg-slate-900/50 rounded-xl border border-dashed border-slate-800 mb-8 flex items-center justify-center overflow-hidden">
+         <AdSpace type="banner" />
+      </div>
 
-      {/* HEADER: PERFIL */}
-      <header className="flex justify-between items-center mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-md">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-cyan-400 to-purple-500 p-[2px]">
-            <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center overflow-hidden">
-              {user.photoURL ? (
-                <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <User className="w-6 h-6 text-slate-400" />
-              )}
-            </div>
-          </div>
-          <div>
-            <h2 className="font-bold text-white text-lg">
-              {user.displayName || 'Invitado Cyberpunk'}
+      {/* HEADER PRINCIPAL */}
+      <div className="w-full max-w-4xl flex justify-between items-center mb-8 relative z-10">
+        <div>
+           <h1 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter">
+             CHAMI<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">ARCADE</span>
+           </h1>
+           <p className="text-[10px] md:text-xs text-slate-500 font-bold tracking-[0.3em] pl-1">JUEGOS TÓXICOS</p>
+        </div>
+        
+        {/* BOTÓN PERFIL */}
+        <Link href="/profile" className="flex items-center gap-3 bg-slate-900 pl-4 pr-1 py-1 rounded-full border border-slate-800 hover:border-pink-500 transition-all group shadow-lg">
+           <span className="text-[10px] font-bold text-slate-300 group-hover:text-white hidden sm:block">
+             {user ? 'MI PERFIL' : 'LOGIN'}
+           </span>
+           <div className="w-8 h-8 bg-gradient-to-tr from-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+              <User className="w-4 h-4 text-white" />
+           </div>
+        </Link>
+      </div>
+
+      {/* SECCIÓN HERO / NIVEL */}
+      <div className="w-full max-w-4xl mb-12 relative">
+         <div className="flex justify-between items-end mb-4">
+            <h2 className="text-xl font-bold text-yellow-500 flex items-center gap-2">
+              ZONA DE RETOS
             </h2>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              ONLINE
+            {/* BOTÓN CREAR SALA */}
+            <button onClick={scrollToGames} className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-[10px] font-bold text-white hover:bg-slate-800 hover:border-blue-500 transition flex items-center gap-2 group">
+               <Share2 className="w-3 h-3 group-hover:text-blue-500 transition-colors" /> CREAR SALA
+            </button>
+         </div>
+
+         <div className="w-full bg-gradient-to-r from-slate-900 to-slate-900/50 border border-slate-800 rounded-3xl p-8 relative overflow-hidden group">
+            {/* Efecto de fondo */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-blue-500/10 transition-all duration-1000"></div>
+            
+            <div className="relative z-10 flex justify-between items-center">
+               <div>
+                  <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-1">TU NIVEL ACTUAL</p>
+                  <h3 className="text-4xl md:text-5xl font-black text-white mb-2">NOVATO</h3>
+                  <div className="h-1.5 w-32 bg-slate-800 rounded-full overflow-hidden">
+                     <div className="h-full bg-blue-500 w-[10%]"></div>
+                  </div>
+               </div>
+               <Trophy className="w-16 h-16 md:w-24 md:h-24 text-slate-800 group-hover:text-blue-500/20 transition-all duration-500" />
             </div>
-          </div>
-        </div>
-
-        <button 
-          onClick={handleLogout}
-          className="p-2 bg-slate-800 hover:bg-red-500/20 hover:text-red-400 rounded-lg transition-colors"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
-      </header>
-
-      {/* 💰 ESPACIO PUBLICITARIO 1 (BANNER) */}
-      <div className="mb-8">
-        <AdSpace type="banner" />
+         </div>
       </div>
 
-      {/* SECCIÓN: RETOS */}
-      <div className="mb-12">
-        <div className="flex justify-between items-end mb-4">
-          <h3 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
-            ZONA DE RETOS
-          </h3>
-          <button className="text-xs bg-slate-800 px-3 py-1 rounded-full flex items-center gap-2 hover:bg-slate-700 transition">
-            <Share2 className="w-3 h-3" /> CREAR SALA
-          </button>
-        </div>
-        
-        <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-2xl border border-slate-700 flex items-center justify-between">
-          <div>
-            <p className="text-slate-400 text-xs mb-1 uppercase tracking-widest">TU NIVEL ACTUAL</p>
-            <p className="text-3xl font-black text-white">NOVATO</p>
-          </div>
-          <Trophy className="w-16 h-16 text-slate-700" />
-        </div>
-      </div>
-
-      {/* JUEGOS ARCADE (NUEVO ESTILO NEÓN PRO) */}
-      <h3 className="text-sm font-bold text-slate-500 mb-6 uppercase tracking-widest pl-2">ARCADE DISPONIBLE</h3>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
-        
-        {/* 1. PIEDRA PAPEL TIJERA (ROSA NEÓN) */}
-        <Link href="/game/rps" className="group relative">
-          <div className="h-48 bg-slate-900/80 border border-pink-500/30 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 transition-all hover:border-pink-500 hover:shadow-[0_0_30px_rgba(236,72,153,0.3)] hover:-translate-y-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            {/* Icono con relleno y brillo permanente */}
-            <Scissors className="w-16 h-16 text-pink-400 fill-pink-500/20 drop-shadow-[0_0_10px_rgba(236,72,153,0.8)] transition-transform group-hover:scale-110" strokeWidth={1.5} />
-            <h2 className="font-black text-white tracking-wider text-lg group-hover:text-pink-300">PIEDRA PAPEL TIJERA</h2>
-            <div className="absolute top-4 right-4 bg-pink-900/50 text-[10px] px-3 py-1 rounded-full text-pink-300 font-bold border border-pink-500/20">VS CPU/ONLINE</div>
-          </div>
-        </Link>
-
-        {/* 2. TRES EN RAYA (CYAN NEÓN) */}
-        <Link href="/game/tictactoe" className="group relative">
-          <div className="h-48 bg-slate-900/80 border border-cyan-500/30 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 transition-all hover:border-cyan-500 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)] hover:-translate-y-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Grid3X3 className="w-16 h-16 text-cyan-400 fill-cyan-500/20 drop-shadow-[0_0_10px_rgba(6,182,212,0.8)] transition-transform group-hover:scale-110" strokeWidth={1.5} />
-            <h2 className="font-black text-white tracking-wider text-lg group-hover:text-cyan-300">TRES EN RAYA</h2>
-            <div className="absolute top-4 right-4 bg-cyan-900/50 text-[10px] px-3 py-1 rounded-full text-cyan-300 font-bold border border-cyan-500/20">ONLINE</div>
-          </div>
-        </Link>
-
-        {/* 3. NEON SNAKE (VERDE NEÓN) */}
-        <Link href="/game/snake" className="group relative">
-          <div className="h-48 bg-slate-900/80 border border-emerald-500/30 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 transition-all hover:border-emerald-500 hover:shadow-[0_0_30px_rgba(16,185,129,0.3)] hover:-translate-y-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Activity className="w-16 h-16 text-emerald-400 fill-emerald-500/20 drop-shadow-[0_0_10px_rgba(16,185,129,0.8)] transition-transform group-hover:scale-110" strokeWidth={1.5} />
-            <h2 className="font-black text-white tracking-wider text-lg group-hover:text-emerald-300">NEON SNAKE</h2>
-            <div className="absolute top-4 right-4 bg-emerald-900/50 text-[10px] px-3 py-1 rounded-full text-emerald-300 font-bold border border-emerald-500/20">RANKING</div>
-          </div>
-        </Link>
-
-{/* 4. SOPA DE LETRAS (AZUL NEÓN) */}
-        <Link href="/game/wordsearch" className="group relative">
-          <div className="h-48 bg-slate-900/80 border border-blue-500/30 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 transition-all hover:border-blue-500 hover:shadow-[0_0_30px_rgba(59,130,246,0.3)] hover:-translate-y-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Search className="w-16 h-16 text-blue-400 fill-blue-500/20 drop-shadow-[0_0_10px_rgba(59,130,246,0.8)] transition-transform group-hover:scale-110" strokeWidth={1.5} />
-            <h2 className="font-black text-white tracking-wider text-lg group-hover:text-blue-300">SOPA DE LETRAS</h2>
-            <div className="absolute top-4 right-4 bg-blue-900/50 text-[10px] px-3 py-1 rounded-full text-blue-300 font-bold border border-blue-500/20">RANKING</div>
-          </div>
-        </Link>
-
-        {/* 5. SUDOKU (ÍNDIGO NEÓN) */}
-        <Link href="/game/sudoku" className="group relative">
-          <div className="h-48 bg-slate-900/80 border border-indigo-500/30 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 transition-all hover:border-indigo-500 hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:-translate-y-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <Grid3X3 className="w-16 h-16 text-indigo-400 fill-indigo-500/20 drop-shadow-[0_0_10px_rgba(99,102,241,0.8)] transition-transform group-hover:scale-110" strokeWidth={1.5} />
-            <h2 className="font-black text-white tracking-wider text-lg group-hover:text-indigo-300">SUDOKU</h2>
-            <div className="absolute top-4 right-4 bg-indigo-900/50 text-[10px] px-3 py-1 rounded-full text-indigo-300 font-bold border border-indigo-500/20">RANKING</div>
-          </div>
-        </Link>
-
-        {/* 6. TETRIX (VIOLETA NEÓN) */}
-        <Link href="/game/tetris" className="group relative">
-          <div className="h-48 bg-slate-900/80 border border-purple-500/30 rounded-3xl p-6 flex flex-col items-center justify-center gap-4 transition-all hover:border-purple-500 hover:shadow-[0_0_30px_rgba(168,85,247,0.3)] hover:-translate-y-2 relative overflow-hidden">
-            <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            <LayoutGrid className="w-16 h-16 text-purple-400 fill-purple-500/20 drop-shadow-[0_0_10px_rgba(168,85,247,0.8)] transition-transform group-hover:scale-110" strokeWidth={1.5} />
-            <h2 className="font-black text-white tracking-wider text-lg group-hover:text-purple-300">TETRIX</h2>
-            <div className="absolute top-4 right-4 bg-purple-900/50 text-[10px] px-3 py-1 rounded-full text-purple-300 font-bold border border-purple-500/20">RANKING</div>
-          </div>
-        </Link>
-
-{/* TARJETA EL AHORCADO (DISEÑO CUADRADO UNIFICADO) */}
-          <Link href="/game/hangman" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-             
-             {/* EFECTO DE FONDO */}
-             <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-pink-500/20"></div>
-             
-             {/* ICONO CENTRADO */}
-             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
-               <Skull className="w-10 h-10 text-pink-500" />
-             </div>
-             
-             {/* TEXTO CENTRADO */}
-             <div className="text-center relative z-10">
-               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">EL AHORCADO</h2>
-               <div className="flex items-center justify-center gap-2">
-                  <span className="px-2 py-0.5 bg-pink-900/30 border border-pink-500/30 rounded text-[10px] text-pink-400 font-bold tracking-wider uppercase">
-                    RANKING
-                  </span>
+      {/* GRID DE JUEGOS */}
+      <div id="games-section" className="w-full max-w-4xl">
+         <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-6 uppercase">Arcade Disponible</p>
+         
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            
+            {/* PIEDRA PAPEL TIJERA */}
+            <Link href="/game/rps" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-4 right-4 px-2 py-1 bg-pink-900/30 border border-pink-500/30 rounded text-[9px] text-pink-400 font-bold">VS CPU/ONLINE</div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all">
+                 <Swords className="w-10 h-10 text-pink-500" />
                </div>
-             </div>
-          </Link>
+               <h2 className="text-xl font-black text-white italic tracking-tighter">PIEDRA PAPEL TIJERA</h2>
+            </Link>
 
-{/* TARJETA CHAMI LA TÓXICA */}
-          <Link href="/game/minesweeper" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-             
-             {/* EFECTO DE FONDO */}
-             <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-red-500/20"></div>
-             
-             {/* ICONO CENTRADO */}
-             <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-red-500/50 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all relative z-10">
-               <Bomb className="w-10 h-10 text-red-500" />
-             </div>
-             
-             {/* TEXTO CENTRADO */}
-             <div className="text-center relative z-10">
-               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">CHAMI LA TÓXICA</h2>
-               <div className="flex items-center justify-center gap-2">
-                  <span className="px-2 py-0.5 bg-red-900/30 border border-red-500/30 rounded text-[10px] text-red-400 font-bold tracking-wider uppercase">
-                    CUIDADO QUE EXPLOTA
-                  </span>
+            {/* TRES EN RAYA */}
+            <Link href="/game/tictactoe" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-4 right-4 px-2 py-1 bg-cyan-900/30 border border-cyan-500/30 rounded text-[9px] text-cyan-400 font-bold">ONLINE</div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all">
+                 <Hash className="w-10 h-10 text-cyan-400" />
                </div>
-             </div>
-          </Link>
-          
+               <h2 className="text-xl font-black text-white italic tracking-tighter">NEON 3 EN RAYA</h2>
+            </Link>
+
+            {/* NEON SNAKE */}
+            <Link href="/game/snake" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-green-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-4 right-4 px-2 py-1 bg-green-900/30 border border-green-500/30 rounded text-[9px] text-green-400 font-bold">RANKING</div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-green-500/50 group-hover:shadow-[0_0_20px_rgba(74,222,128,0.4)] transition-all">
+                 <Activity className="w-10 h-10 text-green-400" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter">NEON SNAKE</h2>
+            </Link>
+
+            {/* SOPA DE LETRAS */}
+            <Link href="/game/wordsearch" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-blue-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-4 right-4 px-2 py-1 bg-blue-900/30 border border-blue-500/30 rounded text-[9px] text-blue-400 font-bold">RANKING</div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-blue-500/50 group-hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all">
+                 <Search className="w-10 h-10 text-blue-500" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter">SOPA DE LETRAS</h2>
+            </Link>
+
+            {/* SUDOKU */}
+            <Link href="/game/sudoku" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-indigo-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-4 right-4 px-2 py-1 bg-indigo-900/30 border border-indigo-500/30 rounded text-[9px] text-indigo-400 font-bold">RANKING</div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-indigo-500/50 group-hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all">
+                 <Grid3X3 className="w-10 h-10 text-indigo-500" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter">SUDOKU</h2>
+            </Link>
+
+            {/* MEMORY */}
+            <Link href="/game/memory" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-pink-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-pink-500/20"></div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
+                 <Brain className="w-10 h-10 text-pink-500" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NEON MEMORY</h2>
+            </Link>
+
+            {/* CONNECT 4 */}
+            <Link href="/game/connect4" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-yellow-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-yellow-500/20"></div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-yellow-500/50 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all relative z-10">
+                 <Circle className="w-10 h-10 text-yellow-500" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">CONNECT 4</h2>
+            </Link>
+
+            {/* DOMINO AARON MOURINHO */}
+            <Link href="/game/domino" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-orange-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-orange-500/20"></div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-orange-500/50 group-hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all relative z-10">
+                 <LayoutList className="w-10 h-10 text-orange-500" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1 text-center">DOMINO<br/><span className="text-sm font-normal text-slate-400">AARON MOURINHO</span></h2>
+            </Link>
+
+            {/* TETRIX */}
+            <Link href="/game/tetris" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-purple-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="absolute top-4 right-4 px-2 py-1 bg-purple-900/30 border border-purple-500/30 rounded text-[9px] text-purple-400 font-bold">RANKING</div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-purple-500/50 group-hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all">
+                 <Gamepad2 className="w-10 h-10 text-purple-500" />
+               </div>
+               <h2 className="text-xl font-black text-white italic tracking-tighter">TETRIX</h2>
+            </Link>
+
+            {/* EL AHORCADO */}
+            <Link href="/game/hangman" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-rose-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] col-span-1 md:col-span-2 lg:col-span-3">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-rose-500/20"></div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-rose-500/50 group-hover:shadow-[0_0_20px_rgba(244,63,94,0.4)] transition-all relative z-10">
+                 <Skull className="w-10 h-10 text-rose-500" />
+               </div>
+               <div className="text-center relative z-10">
+                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">EL AHORCADO</h2>
+                 <p className="text-[10px] text-rose-400 font-bold uppercase tracking-widest">ADIVINA O MUERE</p>
+               </div>
+            </Link>
+
+            {/* CHAMI TOXICA (BUSCAMINAS) */}
+            <Link href="/game/minesweeper" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] col-span-1 md:col-span-2 lg:col-span-3">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-red-500/20"></div>
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-red-500/50 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all relative z-10">
+                 <Bomb className="w-10 h-10 text-red-500" />
+               </div>
+               <div className="text-center relative z-10">
+                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">CHAMI LA TÓXICA</h2>
+                 <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">CUIDADO QUE EXPLOTA</p>
+               </div>
+            </Link>
+
+         </div>
       </div>
-    </main>
+
+      <div className="mt-12 opacity-50"><AdSpace type="banner" /></div>
+    </div>
   );
 }

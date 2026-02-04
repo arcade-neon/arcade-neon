@@ -54,7 +54,6 @@ const generateBoard = (difficulty) => {
       count--;
     }
   }
-  // Aplanamos arrays para guardar fácil en Firebase si es necesario
   return { initial: board, solution };
 };
 
@@ -80,7 +79,7 @@ const generateGameId = () => Math.random().toString(36).substring(2, 8).toUpperC
 
 export default function SudokuBattle() {
   // Estados Generales
-  const [mode, setMode] = useState('menu'); // menu, lobby, playing_solo, playing_online
+  const [mode, setMode] = useState('menu'); 
   const [user, setUser] = useState(null);
   
   // Juego
@@ -91,7 +90,7 @@ export default function SudokuBattle() {
   const [selected, setSelected] = useState(null);
   const [mistakes, setMistakes] = useState(0);
   const [seconds, setSeconds] = useState(0);
-  const [gameState, setGameState] = useState('idle'); // idle, playing, won, lost
+  const [gameState, setGameState] = useState('idle'); 
   const [saveStatus, setSaveStatus] = useState('idle');
   const [leaderboard, setLeaderboard] = useState([]);
 
@@ -105,9 +104,15 @@ export default function SudokuBattle() {
 
   // 1. Auth
   useEffect(() => {
-    const u = auth.currentUser;
-    if (u) setUser({ uid: u.uid, name: u.displayName || 'Jugador' });
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+      if (u) {
+        setUser({ uid: u.uid, name: u.displayName || 'Jugador' });
+      } else {
+        setUser(null);
+      }
+    });
     fetchLeaderboard();
+    return () => unsubscribe();
   }, []);
 
   // 2. Cronómetro
@@ -134,30 +139,33 @@ export default function SudokuBattle() {
 
   // --- LÓGICA ONLINE ---
   const handleOnlineUpdate = (data) => {
-    // Si entramos y el juego ya tiene tablero generado (por el host), cargarlo
+    // 1. INICIO DE PARTIDA (Cuando el host ha subido el tablero)
     if (data.status === 'playing' && gameState === 'idle' && data.boardInitial) {
-       // Cargar tablero desde la nube (parsear JSON si es necesario o directo)
-       const initial = JSON.parse(data.boardInitial);
-       const sol = JSON.parse(data.boardSolution);
-       
-       setBoard(initial.map(row => [...row]));
-       setInitialBoard(initial.map(row => [...row]));
-       setSolution(sol);
-       setDifficulty(data.difficulty);
-       setSeconds(0);
-       setMistakes(0);
-       setGameState('playing');
-       setMode('playing_online');
+       try {
+           const initial = JSON.parse(data.boardInitial);
+           const sol = JSON.parse(data.boardSolution);
+           
+           setBoard(initial.map(row => [...row]));
+           setInitialBoard(initial.map(row => [...row]));
+           setSolution(sol);
+           setDifficulty(data.difficulty);
+           setSeconds(0);
+           setMistakes(0);
+           setGameState('playing');
+           setMode('playing_online');
+       } catch (e) {
+           console.error("Error parsing board data", e);
+       }
     }
 
-    // Detectar si alguien ganó
+    // 2. DETECTAR GANADOR
     if (data.winner) {
       setGameState(data.winner === user?.uid ? 'won' : 'lost');
     }
   };
 
   const findPublicMatch = async () => {
-    if (!user) return setError("Inicia sesión.");
+    if (!user) return alert("Inicia sesión para jugar online.");
     setError('');
     setIsSearching(true);
     setStatusText('BUSCANDO RIVAL...');
@@ -172,20 +180,20 @@ export default function SudokuBattle() {
       const snapshot = await getDocs(q);
 
       if (!snapshot.empty) {
-        // UNIRSE
+        // UNIRSE A PARTIDA PÚBLICA
         const matchDoc = snapshot.docs[0];
-        if (matchDoc.data().host.uid === user.uid) {
+        if (matchDoc.data().host?.uid === user.uid) {
            setGameId(matchDoc.id); setMode('lobby'); setIsSearching(false); return;
         }
         await updateDoc(doc(db, "matches_sudoku", matchDoc.id), {
           guest: user,
-          status: 'ready_to_start', // Señal para que el host genere el tablero
+          status: 'ready_to_start',
           public: false
         });
         setGameId(matchDoc.id);
-        setMode('lobby'); // Esperamos a que el host inicie
+        setMode('lobby');
       } else {
-        // CREAR
+        // CREAR PARTIDA PÚBLICA
         const newId = generateGameId();
         await setDoc(doc(db, "matches_sudoku", newId), {
           host: user,
@@ -197,16 +205,17 @@ export default function SudokuBattle() {
         setGameId(newId);
         setMode('lobby');
       }
-    } catch (e) { setError("Error al buscar."); }
+    } catch (e) { setError("Error al buscar."); console.error(e); }
     setIsSearching(false);
   };
 
   const startOnlineMatch = async () => {
-    // Solo el host genera el tablero y lo sube
-    if (!onlineData || onlineData.host.uid !== user.uid) return;
+    if (!onlineData || !onlineData.host || onlineData.host.uid !== user?.uid) return;
     
-    const { initial, solution } = generateBoard('medium'); // Dificultad estándar para duelo
+    // Generamos tablero
+    const { initial, solution } = generateBoard('medium'); 
     
+    // Subimos tablero a Firebase para que ambos vean lo mismo
     await updateDoc(doc(db, "matches_sudoku", gameId), {
       boardInitial: JSON.stringify(initial),
       boardSolution: JSON.stringify(solution),
@@ -216,12 +225,14 @@ export default function SudokuBattle() {
     });
   };
 
-  // Efecto: Si soy Host y veo que entra un Guest (status 'ready_to_start'), inicio la partida auto
+  // --- CORRECCIÓN DEL ERROR ---
+  // Antes explotaba aquí porque onlineData.host podía ser null. 
+  // Ahora usamos ?. (optional chaining) para evitar el crash.
   useEffect(() => {
-    if (onlineData && onlineData.status === 'ready_to_start' && onlineData.host.uid === user?.uid) {
+    if (onlineData && onlineData.status === 'ready_to_start' && onlineData.host?.uid === user?.uid) {
       startOnlineMatch();
     }
-  }, [onlineData]);
+  }, [onlineData, user]);
 
 
   // --- LÓGICA JUEGO (COMÚN) ---
@@ -264,11 +275,9 @@ export default function SudokuBattle() {
 
   const handleWin = async () => {
     if (mode === 'playing_online') {
-       // Declararse ganador en la nube
-       await updateDoc(doc(db, "matches_sudoku", gameId), { winner: user.uid });
+       if (user) await updateDoc(doc(db, "matches_sudoku", gameId), { winner: user.uid });
        setGameState('won');
     } else {
-       // Solo Mode
        setGameState('won');
        saveScore();
     }
@@ -302,13 +311,11 @@ export default function SudokuBattle() {
   const formatTime = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   // --- RENDERIZADO ---
-
-  // 1. MENÚ PRINCIPAL
   if (mode === 'menu') {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-4 font-mono text-white">
         <Link href="/" className="absolute top-6 left-6 p-3 bg-slate-800 rounded-full hover:bg-slate-700 transition"><ArrowLeft className="w-6 h-6" /></Link>
-        <h1 className="text-5xl font-black text-white mb-2 tracking-tighter drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]">SUDOKU</h1>
+        <h1 className="text-5xl font-black text-white mb-2 tracking-tighter drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">SUDOKU</h1>
         <p className="text-slate-500 text-xs tracking-[0.3em] uppercase mb-12">BRAIN TRAINING</p>
 
         <div className="grid gap-4 w-full max-w-sm mb-8">
@@ -346,7 +353,6 @@ export default function SudokuBattle() {
     );
   }
 
-  // 2. LOBBY ONLINE
   if (mode === 'lobby') {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-4 font-mono text-white">
@@ -362,9 +368,20 @@ export default function SudokuBattle() {
                </button>
                <div className="relative my-6"><div className="border-t border-slate-700"></div><span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 px-2 text-xs text-slate-500">O PRIVADO</span></div>
                <div className="flex gap-2">
-                 <button onClick={async () => { const id = generateGameId(); await setDoc(doc(db,"matches_sudoku",id),{host:user,status:'waiting',public:false}); setGameId(id); }} className="flex-1 py-3 bg-slate-800 rounded-lg text-xs font-bold">CREAR</button>
+                 <button onClick={async () => { 
+                     if (!user) return alert("Inicia sesión primero");
+                     const id = generateGameId(); 
+                     await setDoc(doc(db,"matches_sudoku",id),{host:user,status:'waiting',public:false}); 
+                     setGameId(id); 
+                 }} className="flex-1 py-3 bg-slate-800 rounded-lg text-xs font-bold">CREAR</button>
+                 
                  <input placeholder="CÓDIGO" className="w-24 bg-slate-950 border border-slate-700 rounded-lg text-center font-bold uppercase" onChange={(e)=>setJoinId(e.target.value.toUpperCase())} />
-                 <button onClick={async () => { if(!joinId)return; await updateDoc(doc(db,"matches_sudoku",joinId),{guest:user,status:'ready_to_start'}); setGameId(joinId); }} className="flex-1 py-3 bg-slate-800 rounded-lg text-xs font-bold">UNIRSE</button>
+                 
+                 <button onClick={async () => { 
+                     if(!joinId || !user) return; 
+                     await updateDoc(doc(db,"matches_sudoku",joinId),{guest:user,status:'ready_to_start'}); 
+                     setGameId(joinId); 
+                 }} className="flex-1 py-3 bg-slate-800 rounded-lg text-xs font-bold">UNIRSE</button>
                </div>
              </>
           ) : (
@@ -384,7 +401,6 @@ export default function SudokuBattle() {
     );
   }
 
-  // 3. PANTALLA DE JUEGO (SOLO Y ONLINE)
   if (gameState === 'won' || gameState === 'lost') {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-4 font-mono text-white">
@@ -404,7 +420,6 @@ export default function SudokuBattle() {
 
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center p-2 font-mono text-white select-none">
-       {/* HEADER */}
        <div className="w-full max-w-md flex justify-between items-center mb-6 mt-4">
          <button onClick={() => { if(confirm("¿Salir de la partida?")) { setMode('menu'); setGameState('idle'); setGameId(''); } }} className="p-2 bg-slate-800 rounded-full"><ArrowLeft className="w-5 h-5"/></button>
          
@@ -420,9 +435,7 @@ export default function SudokuBattle() {
          <div className="flex flex-col items-center"><span className="text-[10px] text-slate-500">TIEMPO</span><span className="font-bold text-blue-400 text-xl">{formatTime(seconds)}</span></div>
        </div>
 
-       {/* TABLERO */}
        <div className="bg-slate-900 p-1 rounded-lg border border-slate-700 shadow-2xl mb-6 relative">
-         {/* Overlay si esperamos al rival (solo visual, la logica ya maneja start) */}
          {mode === 'playing_online' && !board.length && <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10 text-white font-bold">Sincronizando...</div>}
          
          <div className="grid grid-cols-9 gap-[1px] bg-slate-700 border-2 border-slate-700">
@@ -456,7 +469,6 @@ export default function SudokuBattle() {
          </div>
        </div>
 
-       {/* TECLADO */}
        <div className="grid grid-cols-5 gap-2 w-full max-w-md px-4">
          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
            <button 
@@ -471,9 +483,7 @@ export default function SudokuBattle() {
        </div>
        
        <div className="mt-8 opacity-50"><AdSpace type="banner" /></div>
-
-       {/* CHAT INTELIGENTE: Si es duelo, chat privado. Si es solo, chat global. */}
-       <GameChat gameId={mode === 'playing_online' ? gameId : "global_sudoku"} gameName={mode === 'playing_online' ? "DUELO" : "GLOBAL"} />
+       <GameChat gameId={mode === 'playing_online' ? gameId : "global_sudoku"} gameName="SUDOKU" />
     </div>
   );
 }
