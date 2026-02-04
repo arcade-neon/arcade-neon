@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { 
   Gamepad2, User, Trophy, Search, Hash, 
   Grid3X3, Video, Gamepad, Ghost, Swords, 
-  Skull, Type, Activity, Bomb, LayoutList, // <--- AHORA SÍ ESTÁ AÑADIDO
-  Brain, Circle, Share2
+  Skull, Type, Activity, Bomb, LayoutList, 
+  Brain, Circle, Share2, Anchor // <--- AHORA SÍ ESTÁ AÑADIDO EL ANCLA
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import AdSpace from '@/components/AdSpace';
@@ -171,6 +171,19 @@ export default function Home() {
                <h2 className="text-xl font-black text-white italic tracking-tighter">TETRIX</h2>
             </Link>
 
+            {/* THANIA LA CANTINERA (HUNDIR LA FLOTA) */}
+            <Link href="/game/battleship" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] col-span-1 md:col-span-2 lg:col-span-3">
+               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-900/0 to-slate-900/0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+               <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-blue-500/10 to-transparent rounded-b-2xl"></div>
+               <div className="p-4 bg-blue-950 rounded-2xl border border-blue-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all relative z-10">
+                 <Anchor className="w-10 h-10 text-cyan-400" />
+               </div>
+               <div className="text-center relative z-10">
+                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">THANIA LA CANTINERA</h2>
+                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">NEON BATTLESHIP</p>
+               </div>
+            </Link>
+
             {/* EL AHORCADO */}
             <Link href="/game/hangman" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-rose-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] col-span-1 md:col-span-2 lg:col-span-3">
                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-bl-full -mr-6 -mt-6 transition-all group-hover:bg-rose-500/20"></div>
@@ -195,21 +208,6 @@ export default function Home() {
                </div>
             </Link>
 
-{/* THANIA LA CANTINERA (HUNDIR LA FLOTA) */}
-            <Link href="/game/battleship" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] col-span-1 md:col-span-2 lg:col-span-3">
-               {/* Fondo de olas/agua */}
-               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-900/0 to-slate-900/0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
-               <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-blue-500/10 to-transparent rounded-b-2xl"></div>
-               
-               <div className="p-4 bg-blue-950 rounded-2xl border border-blue-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all relative z-10">
-                 <Anchor className="w-10 h-10 text-cyan-400" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">THANIA LA CANTINERA</h2>
-                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">NEON BATTLESHIP</p>
-               </div>
-            </Link>
-            
          </div>
       </div>
 
