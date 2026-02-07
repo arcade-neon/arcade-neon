@@ -3,91 +3,76 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Users, Zap, Eye, RotateCw, Slash, Plus, Layers, Crown, Sparkles, Trophy, Timer, AlertCircle, PlayCircle } from 'lucide-react';
+// AQUI ESTABA EL ERROR: He añadido 'Cpu' a la lista de imports
+import { ArrowLeft, Users, Zap, Eye, RotateCw, Slash, Plus, Layers, Crown, Sparkles, Trophy, Timer, AlertCircle, PlayCircle, BookOpen, Copy, Check, Cpu } from 'lucide-react';
 import { db, auth } from '@/lib/firebase';
-import { collection, addDoc, doc, updateDoc, onSnapshot, serverTimestamp, query, orderBy, limit, getDocs, setDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, onSnapshot, serverTimestamp, query, orderBy, limit, getDocs, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace';
 import GameChat from '@/components/GameChat';
-import { useAudio } from '@/contexts/AudioContext'; // Asumiendo que ya tienes el audio
+import { useAudio } from '@/contexts/AudioContext';
 
-// --- CONFIGURACIÓN ---
+// --- CONFIGURACIÓN Y UTILIDADES ---
 const COLORS = ['red', 'blue', 'green', 'yellow'];
 const SPECIALS = ['skip', 'reverse', 'draw2'];
 const WILDS = ['wild', 'draw4'];
 
-type CardType = {
-  id: string;
-  color: string; // 'red', 'blue', 'green', 'yellow', 'black'
-  value: string; // '0'-'9', 'skip', 'reverse', 'draw2', 'wild', 'draw4'
-  score: number;
-};
+type CardType = { id: string; color: string; value: string; score: number; };
 
-// Generar Mazo
 const createDeck = () => {
   let deck: CardType[] = [];
   let id = 0;
   COLORS.forEach(c => {
-    deck.push({ id: `${id++}`, color: c, value: '0', score: 0 }); // 1 zero
+    deck.push({ id: `c${id++}`, color: c, value: '0', score: 0 });
     for (let i = 1; i <= 9; i++) {
-        deck.push({ id: `${id++}`, color: c, value: `${i}`, score: i });
-        deck.push({ id: `${id++}`, color: c, value: `${i}`, score: i });
+        deck.push({ id: `c${id++}`, color: c, value: `${i}`, score: i });
+        deck.push({ id: `c${id++}`, color: c, value: `${i}`, score: i });
     }
     SPECIALS.forEach(s => {
-        deck.push({ id: `${id++}`, color: c, value: s, score: 20 });
-        deck.push({ id: `${id++}`, color: c, value: s, score: 20 });
+        deck.push({ id: `c${id++}`, color: c, value: s, score: 20 });
+        deck.push({ id: `c${id++}`, color: c, value: s, score: 20 });
     });
   });
   WILDS.forEach(w => {
-      for(let i=0; i<4; i++) deck.push({ id: `${id++}`, color: 'black', value: w, score: 50 });
+      for(let i=0; i<4; i++) deck.push({ id: `w${id++}`, color: 'black', value: w, score: 50 });
   });
   return shuffle(deck);
 };
 
-const shuffle = (array: any[]) => {
-  return array.sort(() => Math.random() - 0.5);
-};
+const shuffle = (array: any[]) => array.sort(() => Math.random() - 0.5);
 
-// Generador de Retos
-const generateChallenge = (playerCount: number) => {
-    const challenges = [
-        { id: 'speed', text: 'Gana en menos de 20 turnos', check: (state: any) => state.turns <= 20, bonus: 500 },
-        { id: 'no_wild', text: 'Gana sin usar Comodines', check: (state: any) => state.wildsUsed === 0, bonus: 1000 },
-        { id: 'draw_master', text: 'Haz que roben 4+ cartas', check: (state: any) => state.cardsForced >= 4, bonus: 800 },
-    ];
-    if (playerCount === 4) {
-        challenges.push({ id: 'survivor', text: 'Sobrevive 10 rondas sin robar', check: (state: any) => state.draws === 0, bonus: 1200 });
-    }
-    return challenges[Math.floor(Math.random() * challenges.length)];
-};
-
-export default function NeonUno() {
-  const [view, setView] = useState('menu');
+export default function ProUno() {
+  const [view, setView] = useState('menu'); // menu, lobby, game
   const [user, setUser] = useState<any>(null);
   const { playSound } = useAudio();
 
-  // ESTADO JUEGO
+  // ESTADO JUEGO (SYNC)
+  const [gameMode, setGameMode] = useState<'pve' | 'pvp'>('pve');
   const [deck, setDeck] = useState<CardType[]>([]);
   const [discard, setDiscard] = useState<CardType[]>([]);
-  const [players, setPlayers] = useState<any[]>([]); // { id, name, hand: [], isBot }
+  const [players, setPlayers] = useState<any[]>([]);
   const [turnIndex, setTurnIndex] = useState(0);
-  const [direction, setDirection] = useState(1); // 1 or -1
+  const [direction, setDirection] = useState(1);
   const [currentColor, setCurrentColor] = useState('');
   const [winner, setWinner] = useState<any>(null);
-  const [isDrawPending, setIsDrawPending] = useState(0); // Cartas acumuladas por draw2/draw4
-  
-  // ESTADO USUARIO
-  const [lives, setLives] = useState(3);
-  const [score, setScore] = useState(0);
-  const [challenge, setChallenge] = useState<any>(null);
-  const [gameStats, setGameStats] = useState({ turns: 0, wildsUsed: 0, cardsForced: 0, draws: 0 });
-  const [log, setLog] = useState("¡Bienvenido a NEON UNO!");
+  const [isDrawPending, setIsDrawPending] = useState(0);
+  const [log, setLog] = useState("Bienvenido a UNO PRO");
 
-  // ONLINE & ADS
+  // ONLINE PVP
   const [roomCode, setRoomCode] = useState('');
   const [isHost, setIsHost] = useState(false);
+  const [myPlayerIndex, setMyPlayerIndex] = useState(-1);
+  const [copied, setCopied] = useState(false);
+
+  // ESTADO LOCAL USUARIO
+  const [lives, setLives] = useState(3);
+  const [score, setScore] = useState(0);
+  const [showRules, setShowRules] = useState(false);
+  const [activeColorSelect, setActiveColorSelect] = useState(false);
+  const tempWildCardRef = useRef<CardType | null>(null);
+
+  // ADS & DATA
   const [adState, setAdState] = useState({ active: false, type: null, timer: 5 });
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [activeColorSelect, setActiveColorSelect] = useState(false); // Para elegir color tras Wild
 
   useEffect(() => {
     const u = auth.currentUser;
@@ -95,414 +80,541 @@ export default function NeonUno() {
     fetchLeaderboard();
   }, []);
 
-  const fetchLeaderboard = async () => {
-      try {
-        const q = query(collection(db, "scores_uno"), orderBy("score", "desc"), limit(5));
-        const s = await getDocs(q); 
-        setLeaderboard(s.docs.map(d=>d.data()));
-      } catch (e) { console.log(e); }
-  };
-
-  // --- LOGICA PRINCIPAL ---
-  const startGame = (mode: string, playerCount: number) => {
-      if (lives <= 0 && mode === 'pve') {
-          if(confirm("¡Sin vidas! ¿Ver anuncio para continuar?")) watchAd('life');
-          return;
-      }
-
-      const newDeck = createDeck();
-      // Repartir 7 cartas
-      const newPlayers = [];
-      // Jugador Humano
-      newPlayers.push({ id: 'player', name: 'Tú', hand: newDeck.splice(0, 7), isBot: false });
-      // Bots
-      for(let i=1; i<playerCount; i++) {
-          newPlayers.push({ id: `bot_${i}`, name: `CPU ${i}`, hand: newDeck.splice(0, 7), isBot: true });
-      }
-
-      // Primera carta descarte (no puede ser wild para simplificar)
-      let firstCard = newDeck.pop();
-      while(firstCard?.color === 'black') {
-          newDeck.unshift(firstCard);
-          firstCard = newDeck.pop();
-      }
-
-      setDeck(newDeck);
-      setDiscard([firstCard!]);
-      setPlayers(newPlayers);
-      setCurrentColor(firstCard!.color);
-      setTurnIndex(0);
-      setDirection(1);
-      setWinner(null);
-      setIsDrawPending(0);
-      setGameStats({ turns: 0, wildsUsed: 0, cardsForced: 0, draws: 0 });
-      setChallenge(generateChallenge(playerCount));
-      setView('game');
-      setLog("La partida ha comenzado.");
-      playSound('start');
-  };
-
-  // TURNO DE IA
+  // --- SYNC ONLINE (PVP) ---
   useEffect(() => {
-      if (view === 'game' && !winner && players[turnIndex]?.isBot) {
+      if (gameMode === 'pvp' && roomCode) {
+          const unsub = onSnapshot(doc(db, "matches_uno", roomCode), (docSnap) => {
+              if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  setPlayers(data.players);
+                  
+                  // Detectar mi índice
+                  const myIdx = data.players.findIndex((p:any) => p.uid === user?.uid);
+                  setMyPlayerIndex(myIdx);
+
+                  if (data.status === 'playing') {
+                      if (view !== 'game') { setView('game'); playSound('start'); }
+                      // Sincronizar estado del juego
+                      setDeck(data.gameState.deck.map((c:any) => JSON.parse(c)));
+                      setDiscard(data.gameState.discard.map((c:any) => JSON.parse(c)));
+                      setTurnIndex(data.gameState.turnIndex);
+                      setDirection(data.gameState.direction);
+                      setCurrentColor(data.gameState.currentColor);
+                      setIsDrawPending(data.gameState.isDrawPending);
+                      setLog(data.lastAction || 'Partida en curso');
+                      if(data.winner) endGame(data.winner.id, data.winner.name);
+                  }
+              }
+          });
+          return () => unsub();
+      }
+  }, [gameMode, roomCode, view, user]);
+
+  // --- LÓGICA PVE (BOTS) ---
+  useEffect(() => {
+      if (gameMode === 'pve' && view === 'game' && !winner && players[turnIndex]?.isBot) {
           const timer = setTimeout(() => playBotTurn(), 1500);
           return () => clearTimeout(timer);
       }
-  }, [turnIndex, view, winner]);
+  }, [turnIndex, view, winner, gameMode]);
+
+  const startPvE = (count: number) => {
+      if (lives <= 0) { if(confirm("Sin vidas. ¿Ver anuncio?")) watchAd('life'); return; }
+      setGameMode('pve');
+      const newDeck = createDeck();
+      const newPlayers = [{ id: 'player', name: 'Tú', hand: newDeck.splice(0, 7), isBot: false, uid: user?.uid }];
+      for(let i=1; i<count; i++) newPlayers.push({ id: `bot_${i}`, name: `CPU ${i}`, hand: newDeck.splice(0, 7), isBot: true });
+      
+      initializeGameState(newDeck, newPlayers);
+      setView('game'); playSound('start');
+  };
 
   const playBotTurn = () => {
       const bot = players[turnIndex];
-      const topCard = discard[discard.length-1];
-      
-      // Buscar jugada válida
       const validCards = bot.hand.filter((c: CardType) => isValidPlay(c));
-      
       if (validCards.length > 0) {
-          // Estrategia simple: Priorizar especiales si el siguiente tiene pocas cartas
-          // O jugar color dominante
-          const cardToPlay = validCards[0]; // Simplificado: juega la primera válida
-          
-          let nextColor = cardToPlay.color;
-          if (cardToPlay.color === 'black') {
-              // Elegir color que más tenga
+          const card = validCards[0]; // Simple AI
+          let nextColor = card.color;
+          if (card.color === 'black') {
               const counts = { red:0, blue:0, green:0, yellow:0 };
               bot.hand.forEach((c:any) => { if(c.color!=='black') counts[c.color as keyof typeof counts]++ });
               nextColor = Object.keys(counts).reduce((a, b) => counts[a as keyof typeof counts] > counts[b as keyof typeof counts] ? a : b);
           }
-          
-          playCard(bot.id, cardToPlay, nextColor);
+          executePlay(bot.id, card, nextColor);
       } else {
-          drawCard(bot.id);
+          executeDraw(bot.id);
       }
+  };
+
+  // --- LÓGICA COMÚN (PVE & PVP) ---
+  const initializeGameState = (initialDeck: CardType[], initialPlayers: any[]) => {
+      let first = initialDeck.pop();
+      while(first?.color === 'black') { initialDeck.unshift(first); first = initialDeck.pop(); }
+      setDeck(initialDeck); setDiscard([first!]); setPlayers(initialPlayers);
+      setCurrentColor(first!.color); setTurnIndex(0); setDirection(1); setWinner(null); setIsDrawPending(0);
+      setMyPlayerIndex(0); // En PVE siempre soy 0
   };
 
   const isValidPlay = (card: CardType) => {
       const top = discard[discard.length-1];
-      if (card.color === 'black') return true; // Wilds always playable
-      if (card.color === currentColor) return true; // Match color
-      if (card.value === top.value) return true; // Match value
-      return false;
+      if (isDrawPending > 0) { // Si hay arrastre, solo se puede responder con otra igual o robar
+        if (top.value === 'draw2' && card.value === 'draw2') return true;
+        if (top.value === 'draw4' && card.value === 'draw4') return true;
+        return false; // Debe robar
+      }
+      return card.color === 'black' || card.color === currentColor || card.value === top.value;
   };
 
-  const playCard = (playerId: string, card: CardType, chosenColor?: string) => {
+  // Función central para ejecutar una jugada (Actualiza estado local o remoto)
+  const executePlay = async (playerId: string, card: CardType, chosenColor?: string) => {
       playSound('card');
-      
-      // Aplicar efectos
-      let nextDir = direction;
-      let nextSkip = false;
-      let drawAmount = 0;
-
-      if (card.value === 'reverse') {
-          if (players.length === 2) nextSkip = true; // En 2j reverse actua como skip
-          else nextDir *= -1;
-      }
+      let nextDir = direction; let nextSkip = false; let addDraw = 0;
+      if (card.value === 'reverse') { if (players.length === 2) nextSkip = true; else nextDir *= -1; }
       if (card.value === 'skip') nextSkip = true;
-      if (card.value === 'draw2') drawAmount = 2;
-      if (card.value === 'draw4') drawAmount = 4;
+      if (card.value === 'draw2') addDraw = 2;
+      if (card.value === 'draw4') addDraw = 4;
 
-      // Actualizar stats si soy yo
-      if (playerId === 'player') {
-          setGameStats(p => ({ ...p, turns: p.turns + 1, wildsUsed: card.color==='black' ? p.wildsUsed+1 : p.wildsUsed, cardsForced: p.cardsForced + drawAmount }));
-      }
+      const newPlayers = players.map(p => p.id === playerId ? { ...p, hand: p.hand.filter((c:any) => c.id !== card.id) } : p);
+      const newDiscard = [...discard, card];
+      const newColor = chosenColor || card.color;
+      const newDrawPending = isDrawPending + addDraw;
 
-      // Actualizar manos
-      const newPlayers = players.map(p => {
-          if (p.id === playerId) {
-              return { ...p, hand: p.hand.filter((c:any) => c.id !== card.id) };
-          }
-          return p;
-      });
-
-      // Actualizar mesa
-      setDiscard(prev => [...prev, card]);
-      setPlayers(newPlayers);
-      setDirection(nextDir);
-      setCurrentColor(chosenColor || card.color); // Si es wild, usa el elegido
-
-      // Check Win
-      if (newPlayers.find(p => p.id === playerId)?.hand.length === 0) {
-          endGame(playerId);
-          return;
-      }
-
-      // Pasar turno
       let nextIndex = (turnIndex + nextDir + players.length) % players.length;
-      
-      // Aplicar Skip
+      let actionLog = `${players[turnIndex].name} jugó ${card.value}`;
+
+      if (newPlayers.find(p => p.id === playerId)?.hand.length === 0) {
+          handleWin(playerId, players.find(p=>p.id===playerId)?.name); return;
+      }
+
       if (nextSkip) {
-          setLog(`${players[playerId==='player'?0:1].name} saltado.`); // Simplificado nombre
+          actionLog += `. ${players[nextIndex].name} saltado.`;
           nextIndex = (nextIndex + nextDir + players.length) % players.length;
       }
 
-      // Aplicar Draw acumulado al siguiente jugador
-      if (drawAmount > 0) {
-          const targetPlayer = newPlayers[nextIndex];
-          for(let i=0; i<drawAmount; i++) {
-              if (deck.length > 0) targetPlayer.hand.push(deck.pop());
+      if (newDrawPending > 0 && (card.value !== 'draw2' && card.value !== 'draw4')) {
+           // Lógica simplificada de stack
+      }
+
+      updateGameState({ deck, discard: newDiscard, players: newPlayers, turnIndex: nextIndex, direction: nextDir, currentColor: newColor, isDrawPending: newDrawPending }, actionLog);
+  };
+
+  const executeDraw = async (playerId: string, forcedAmount?: number) => {
+      let currentDeck = [...deck];
+      let currentDiscard = [...discard];
+      const cardsToDraw = forcedAmount || 1;
+      const drawnCards: CardType[] = [];
+
+      for(let i=0; i<cardsToDraw; i++) {
+          if (currentDeck.length === 0) {
+              if(currentDiscard.length <= 1) break; // No more cards
+              const top = currentDiscard.pop();
+              currentDeck = shuffle(currentDiscard);
+              currentDiscard = [top!];
           }
-          setLog(`${targetPlayer.name} roba ${drawAmount}!`);
-          // Normalmente pierden turno tras robar en Draw2/4? Depende reglas casa. 
-          // Reglas oficiales: Pierde turno.
-          nextIndex = (nextIndex + nextDir + players.length) % players.length;
-      }
-
-      setTurnIndex(nextIndex);
-  };
-
-  const drawCard = (playerId: string) => {
-      // Robar del mazo
-      if (deck.length === 0) {
-          // Reshuffle discard (menos top)
-          const top = discard.pop();
-          setDeck(shuffle(discard));
-          setDiscard([top!]);
+          drawnCards.push(currentDeck.pop()!);
       }
       
-      const newCard = deck.pop();
-      if (!newCard) return;
+      const newPlayers = players.map(p => p.id === playerId ? { ...p, hand: [...p.hand, ...drawnCards] } : p);
+      let nextIndex = (turnIndex + direction + players.length) % players.length;
+      let newDrawPending = isDrawPending;
+      let actionLog = `${players[turnIndex].name} robó ${drawnCards.length}`;
 
-      const newPlayers = players.map(p => {
-          if (p.id === playerId) return { ...p, hand: [...p.hand, newCard] };
-          return p;
-      });
-      setPlayers(newPlayers);
-      setLog(`${players.find(p=>p.id===playerId)?.name} robó carta.`);
-      
-      // Pasar turno (Regla simple: robas y pasas)
-      setTurnIndex((turnIndex + direction + players.length) % players.length);
+      if (forcedAmount) { 
+          newDrawPending = 0; 
+      } else if (isDrawPending > 0) {
+         return executeDraw(playerId, isDrawPending);
+      }
+
+      updateGameState({ deck: currentDeck, discard: currentDiscard, players: newPlayers, turnIndex: nextIndex, direction, currentColor, isDrawPending: newDrawPending }, actionLog);
   };
 
-  const handlePlayerCardClick = (card: CardType) => {
-      if (turnIndex !== 0) return; // No es mi turno
-      if (!isValidPlay(card)) {
-          playSound('error');
-          return;
+  const updateGameState = async (newState: any, actionLog: string) => {
+      if (gameMode === 'pve') {
+          setDeck(newState.deck); setDiscard(newState.discard); setPlayers(newState.players);
+          setTurnIndex(newState.turnIndex); setDirection(newState.direction); setCurrentColor(newState.currentColor); setIsDrawPending(newState.isDrawPending); setLog(actionLog);
+      } else {
+          const serializedState = {
+              ...newState,
+              deck: newState.deck.map((c:any) => JSON.stringify(c)),
+              discard: newState.discard.map((c:any) => JSON.stringify(c)),
+              players: newState.players.map((p:any) => ({...p, hand: p.hand.map((c:any)=>JSON.stringify(c))}))
+          };
+          await updateDoc(doc(db, "matches_uno", roomCode), { gameState: serializedState, lastAction: actionLog });
       }
+  };
+
+  // --- INTERACCIÓN JUGADOR ---
+  const handleCardClick = (card: CardType) => {
+      if (turnIndex !== myPlayerIndex) return;
+      if (!isValidPlay(card)) { playSound('error'); return; }
 
       if (card.color === 'black') {
-          // Mostrar selector de color
+          tempWildCardRef.current = card;
           setActiveColorSelect(true);
-          // Guardamos carta temp
-          window.tempWildCard = card;
       } else {
-          playCard('player', card);
+          executePlay(players[myPlayerIndex].id, card);
+      }
+  };
+  const handleColorSelect = (color: string) => {
+      setActiveColorSelect(false);
+      if(tempWildCardRef.current) executePlay(players[myPlayerIndex].id, tempWildCardRef.current, color);
+  };
+  const handleDeckClick = () => {
+      if (turnIndex !== myPlayerIndex) return;
+      if (isDrawPending > 0) executeDraw(players[myPlayerIndex].id, isDrawPending); 
+      else executeDraw(players[myPlayerIndex].id); 
+  };
+
+  // --- FINALIZACIÓN ---
+  const handleWin = async (winnerId: string, winnerName: string) => {
+      if (gameMode === 'pvp') {
+          await updateDoc(doc(db, "matches_uno", roomCode), { status: 'finished', winner: { id: winnerId, name: winnerName } });
+      } else {
+          endGame(winnerId, winnerName);
       }
   };
 
-  const handleColorSelect = (color: string) => {
-      setActiveColorSelect(false);
-      const card = window.tempWildCard;
-      playCard('player', card, color);
-  };
-
-  const endGame = (winnerId: string) => {
-      playSound(winnerId === 'player' ? 'win' : 'lose');
-      setWinner(winnerId);
-      if (winnerId === 'player') {
-          // Calcular puntos (suma de manos rivales)
+  const endGame = (winnerId: string, winnerName: string) => {
+      const isMe = winnerId === players[myPlayerIndex]?.id;
+      playSound(isMe ? 'win' : 'lose');
+      setWinner({ id: winnerId, name: winnerName });
+      if (isMe) {
           let points = 0;
-          players.forEach(p => { if(p.id !== 'player') p.hand.forEach((c:any) => points += c.score); });
-          
-          // Bonus reto
-          if (challenge.check(gameStats)) {
-              points += challenge.bonus;
-              setLog(`¡RETO COMPLETADO! +${challenge.bonus} PTS`);
-          }
-          
-          setScore(s => s + points);
-          saveScore(score + points);
-      } else {
+          players.forEach(p => { if(p.id !== winnerId) p.hand.forEach((c:any) => points += c.score); });
+          setScore(s => s + points); saveScore(score + points);
+      } else if (gameMode === 'pve') {
           setLives(l => l - 1);
       }
   };
 
-  // --- ADS ---
+  // --- ONLINE LOBBY ---
+  const createRoom = async () => {
+      if (!user) return alert("Inicia sesión");
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const initialDeck = createDeck();
+      const hostPlayer = { id: `p_${user.uid}`, name: user.name, hand: [], uid: user.uid, isHost: true };
+      
+      await setDoc(doc(db, "matches_uno", code), {
+          hostId: user.uid, status: 'waiting', players: [hostPlayer], createdAt: serverTimestamp(),
+          gameState: { deck: initialDeck.map(c=>JSON.stringify(c)), discard: [], turnIndex:0, direction:1, currentColor:'', isDrawPending:0 }
+      });
+      setRoomCode(code); setIsHost(true); setGameMode('pvp'); setView('lobby');
+  };
+  
+  const joinRoom = async (code: string) => {
+      if (!user) return alert("Inicia sesión");
+      const roomRef = doc(db, "matches_uno", code);
+      const roomSnap = await getDoc(roomRef);
+      if (!roomSnap.exists() || roomSnap.data().status !== 'waiting') return alert("Sala no válida");
+      if (roomSnap.data().players.length >= 4) return alert("Sala llena");
+      
+      const newPlayer = { id: `p_${user.uid}`, name: user.name, hand: [], uid: user.uid, isHost: false };
+      await updateDoc(roomRef, { players: arrayUnion(newPlayer) });
+      setRoomCode(code); setIsHost(false); setGameMode('pvp'); setView('lobby');
+  };
+
+  const startOnlineGame = async () => {
+      if (players.length < 2) return alert("Mínimo 2 jugadores");
+      const roomRef = doc(db, "matches_uno", roomCode);
+      const roomData = (await getDoc(roomRef)).data();
+      let deck = roomData.gameState.deck.map((c:any)=>JSON.parse(c));
+      const updatedPlayers = players.map(p => ({ ...p, hand: deck.splice(0, 7).map((c:any)=>JSON.stringify(c)) }));
+      
+      let first = deck.pop();
+      while(first?.color === 'black') { deck.unshift(first); first = deck.pop(); }
+
+      const initialGameState = {
+          deck: deck.map((c:any)=>JSON.stringify(c)), discard: [JSON.stringify(first)],
+          players: updatedPlayers, turnIndex: 0, direction: 1, currentColor: first.color, isDrawPending: 0
+      };
+      await updateDoc(roomRef, { status: 'playing', gameState: initialGameState, players: updatedPlayers });
+  };
+
+  const copyCode = () => { navigator.clipboard.writeText(roomCode); setCopied(true); setTimeout(()=>setCopied(false), 2000); };
+
+  // --- HELPERS & ADS ---
   const watchAd = (type: any) => { setAdState({ active: true, type, timer: 5 }); };
-  useEffect(() => {
-    let i:any;
-    if (adState.active && adState.timer > 0) i = setInterval(() => setAdState(p => ({ ...p, timer: p.timer - 1 })), 1000);
-    else if (adState.active) { clearInterval(i); setAdState({active:false, timer:5}); finishAd(); } 
-    return () => clearInterval(i);
-  }, [adState.active]);
-
-  const finishAd = () => {
-      if (adState.type === 'life') setLives(l => l + 1);
-      if (adState.type === 'hint') highlightHint();
-      setAdState(p => ({ ...p, active: false }));
-  };
-
-  const highlightHint = () => {
-      const valid = players[0].hand.find((c:any) => isValidPlay(c));
-      if (valid) alert(`Prueba con: ${valid.value} ${valid.color}`);
-      else alert("No tienes jugadas, debes robar.");
-  };
-
+  useEffect(() => { let i:any; if (adState.active && adState.timer > 0) i = setInterval(() => setAdState(p => ({...p, timer: p.timer-1})), 1000); else if (adState.active) { clearInterval(i); setAdState({active:false, timer:5}); if(adState.type==='life') setLives(l=>l+1); setAdState(p=>({...p, active:false})); } return () => clearInterval(i); }, [adState.active]);
   const saveScore = async (s: number) => { if(user) await addDoc(collection(db, "scores_uno"), { uid:user.uid, displayName:user.name, score:s, date:serverTimestamp() }); fetchLeaderboard(); };
+  const fetchLeaderboard = async () => { const q = query(collection(db, "scores_uno"), orderBy("score", "desc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); };
 
-  // --- RENDER HELPERS ---
-  const getColorClass = (c: string) => {
-      switch(c) {
-          case 'red': return 'bg-rose-600 shadow-[0_0_15px_rgba(225,29,72,0.6)] border-rose-400';
-          case 'blue': return 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.6)] border-blue-400';
-          case 'green': return 'bg-emerald-600 shadow-[0_0_15px_rgba(5,150,105,0.6)] border-emerald-400';
-          case 'yellow': return 'bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.6)] border-yellow-300';
-          case 'black': return 'bg-slate-900 shadow-[0_0_15px_rgba(255,255,255,0.3)] border-slate-500 bg-[url("https://www.transparenttextures.com/patterns/carbon-fibre.png")]';
-          default: return 'bg-slate-700';
+  // --- COMPONENTE CARTA CLÁSICA MEJORADA ---
+  const Card = ({ card, hidden = false, onClick, small = false, selectable = false }: any) => {
+      const baseClasses = "relative rounded-lg border-2 shadow-md select-none transition-all duration-200 flex items-center justify-center overflow-hidden bg-white";
+      const sizeClasses = small ? "w-10 h-14 text-sm border-slate-300" : "w-20 h-32 sm:w-24 sm:h-36 text-3xl sm:text-4xl border-white";
+      const hoverClasses = selectable ? "cursor-pointer hover:scale-105 hover:-translate-y-2 hover:shadow-xl hover:z-10" : "";
+      
+      let bgColor = "bg-slate-800"; let textColor = "text-black";
+      if (!hidden) {
+          if (card.color === 'red') bgColor = "bg-red-600";
+          else if (card.color === 'blue') bgColor = "bg-blue-600";
+          else if (card.color === 'green') bgColor = "bg-green-600";
+          else if (card.color === 'yellow') bgColor = "bg-yellow-500";
+          else bgColor = "bg-black"; 
       }
-  };
 
-  const Card = ({ card, hidden = false, onClick, small = false }: any) => {
-      if (hidden) return <div className={`rounded-xl bg-slate-800 border-2 border-slate-600 ${small ? 'w-8 h-12' : 'w-16 h-24'} shadow-lg flex items-center justify-center`}><div className="w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-700 to-slate-900 rounded opacity-50"></div></div>;
+      const innerContent = (val: string) => {
+          if (val === 'skip') return <Slash className="w-3/4 h-3/4"/>;
+          if (val === 'reverse') return <RotateCw className="w-3/4 h-3/4"/>;
+          if (val === 'draw2') return '+2';
+          if (val === 'draw4') return '+4';
+          if (val === 'wild') return <Sparkles className="w-3/4 h-3/4"/>;
+          return val;
+      };
+
+      if (hidden) return (
+          <div className={`${baseClasses} ${sizeClasses} bg-slate-900 border-slate-700`}>
+             <div className="absolute inset-2 bg-slate-800 rounded opacity-50 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-700 to-transparent"></div>
+             <span className="font-black italic text-slate-700 text-lg">UNO</span>
+          </div>
+      );
 
       return (
-          <div onClick={onClick} className={`${getColorClass(card.color)} ${small ? 'w-10 h-14 text-xs' : 'w-20 h-32 sm:w-24 sm:h-36 text-2xl'} rounded-xl border-2 flex flex-col items-center justify-center relative cursor-pointer hover:scale-110 hover:-translate-y-4 transition-all duration-200 select-none group`}>
-              <span className="font-black italic text-white drop-shadow-md group-hover:animate-pulse">
-                  {card.value === 'skip' ? <Slash/> : card.value === 'reverse' ? <RotateCw/> : card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value === 'wild' ? <Sparkles/> : card.value}
-              </span>
-              {!small && <div className="absolute top-1 left-1 text-[10px] text-white opacity-80 font-bold">{card.value}</div>}
-              {!small && <div className="absolute bottom-1 right-1 text-[10px] text-white opacity-80 font-bold rotate-180">{card.value}</div>}
+          <div onClick={onClick} className={`${baseClasses} ${sizeClasses} ${bgColor} ${hoverClasses}`}>
+              <div className="absolute inset-1.5 bg-white rounded-[50%] rotate-[-10deg] shadow-inner flex items-center justify-center">
+                   <span className={`font-black italic ${textColor} drop-shadow-sm`} style={{WebkitTextStroke: '1px black'}}>
+                      {innerContent(card.value)}
+                   </span>
+              </div>
+              {!small && <div className="absolute top-1 left-1 text-xs text-white font-black drop-shadow" style={{WebkitTextStroke: '0.5px black'}}>{card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value.charAt(0).toUpperCase()}</div>}
+              {!small && <div className="absolute bottom-1 right-1 text-xs text-white font-black drop-shadow rotate-180" style={{WebkitTextStroke: '0.5px black'}}>{card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value.charAt(0).toUpperCase()}</div>}
           </div>
       );
   };
 
+  // --- RENDER ---
   return (
-    <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-2 font-mono text-white overflow-hidden relative">
+    <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-2 font-mono text-white overflow-hidden relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#050b14] to-black">
         
-        {/* AD OVERLAY */}
         {adState.active && <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center flex-col"><Eye className="w-20 h-20 text-yellow-400 animate-pulse mb-4"/><h2 className="text-2xl font-bold">PUBLICIDAD: {adState.timer}s</h2></div>}
 
         {/* HEADER */}
-        <div className="w-full max-w-6xl flex justify-between items-center mb-4 z-10 px-4 mt-2">
-            <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-3 bg-slate-900 rounded-full border border-slate-700 hover:border-pink-500 transition-all"><ArrowLeft className="w-5 h-5"/></button>
+        <div className="w-full max-w-7xl flex justify-between items-center mb-4 z-10 px-4 mt-4">
+            <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-3 bg-slate-900/80 rounded-full border border-slate-700 hover:border-yellow-500 transition-all"><ArrowLeft className="w-5 h-5"/></button>
             <div className="text-center">
-                <h1 className="text-3xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500 tracking-tighter drop-shadow-lg">NEON UNO</h1>
-                <p className="text-[10px] tracking-[0.4em] text-slate-400 font-bold">HYPER LOOP</p>
+                <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 tracking-tighter drop-shadow-xl">UNO PRO</h1>
+                <p className="text-[10px] tracking-[0.4em] text-slate-400 font-bold uppercase">CLASSIC EDITION</p>
             </div>
-            {view !== 'menu' && (
+            {view === 'game' ? (
                 <div className="flex gap-2">
-                    <div className="flex items-center gap-1 bg-slate-900 px-3 py-1 rounded-full border border-pink-500/50"><Zap className="w-3 h-3 text-pink-500"/> {lives}</div>
-                    <div className="flex items-center gap-1 bg-slate-900 px-3 py-1 rounded-full border border-yellow-500/50">{score} PTS</div>
+                    {gameMode==='pve' && <div className="flex items-center gap-1 bg-slate-900/80 px-3 py-1 rounded-full border border-red-500/50"><Zap className="w-3 h-3 text-red-500"/> {lives}</div>}
+                    <div className="flex items-center gap-1 bg-slate-900/80 px-3 py-1 rounded-full border border-yellow-500/50">{score} PTS</div>
                 </div>
-            )}
+            ) : <div className="w-20"></div>}
         </div>
 
         {view === 'menu' ? (
             <div className="w-full max-w-md grid gap-4 animate-in zoom-in mt-8 z-10">
-                <button onClick={() => startGame('pve', 2)} className="bg-slate-900 p-6 rounded-2xl border border-slate-700 hover:border-blue-500 transition group flex items-center gap-4 shadow-xl">
-                    <div className="p-4 bg-blue-900/30 rounded-xl"><Users className="w-8 h-8 text-blue-400"/></div>
-                    <div className="text-left"><h2 className="text-xl font-black">DUELO 1vs1</h2><p className="text-xs text-slate-400">Rápido y frenético.</p></div>
-                </button>
-                <button onClick={() => startGame('pve', 4)} className="bg-slate-900 p-6 rounded-2xl border border-slate-700 hover:border-purple-500 transition group flex items-center gap-4 shadow-xl">
-                    <div className="p-4 bg-purple-900/30 rounded-xl"><Layers className="w-8 h-8 text-purple-400"/></div>
-                    <div className="text-left"><h2 className="text-xl font-black">CAOS (4 JUGADORES)</h2><p className="text-xs text-slate-400">Todos contra todos.</p></div>
-                </button>
+                <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-700 backdrop-blur-md">
+                    <h2 className="text-sm font-bold text-yellow-500 mb-4 uppercase tracking-widest flex items-center gap-2"><Cpu className="w-4 h-4"/> Un Jugador (VS CPU)</h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <button onClick={() => startPvE(2)} className="py-4 bg-slate-800 hover:bg-blue-900/30 border border-slate-600 hover:border-blue-500 rounded-xl font-bold text-blue-300 transition-all flex flex-col items-center"><Users className="w-6 h-6 mb-1"/> 2 JUGADORES</button>
+                        <button onClick={() => startPvE(4)} className="py-4 bg-slate-800 hover:bg-purple-900/30 border border-slate-600 hover:border-purple-500 rounded-xl font-bold text-purple-300 transition-all flex flex-col items-center"><Layers className="w-6 h-6 mb-1"/> 4 JUGADORES</button>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-700 backdrop-blur-md shadow-xl">
+                  <h2 className="text-sm font-bold text-green-500 mb-4 uppercase tracking-widest flex items-center gap-2"><Users className="w-4 h-4"/> Multijugador Online</h2>
+                  <div className="flex gap-2">
+                      <button onClick={createRoom} className="flex-1 py-3 bg-green-700 rounded-lg font-bold text-xs hover:bg-green-600 text-white shadow-[0_0_15px_rgba(34,197,94,0.3)]">CREAR SALA</button>
+                      <input id="code" placeholder="CÓDIGO" className="w-24 bg-black/50 border border-slate-600 rounded-lg text-center font-mono text-green-400 font-bold focus:border-green-500 outline-none"/>
+                      <button onClick={() => joinRoom((document.getElementById('code') as HTMLInputElement).value)} className="flex-1 py-3 bg-slate-800 rounded-lg font-bold text-xs border border-slate-600 hover:border-green-500 text-slate-300 transition-all">UNIRSE</button>
+                  </div>
+              </div>
                 
                 {leaderboard.length > 0 && (
-                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 mt-4 backdrop-blur-sm">
-                        <h3 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest">Top Mundial</h3>
-                        {leaderboard.map((s,i) => (<div key={i} className="flex justify-between text-xs py-2 border-b border-slate-800 last:border-0 text-slate-300"><span>#{i+1} {s.displayName}</span><span className="text-yellow-500 font-bold">{s.score}</span></div>))}
+                    <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800 mt-2 backdrop-blur-sm">
+                        <h3 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-widest">Ranking Global</h3>
+                        {leaderboard.map((s,i) => (<div key={i} className="flex justify-between text-xs py-2 border-b border-slate-800/50 text-slate-300 font-mono"><span>#{i+1} {s.displayName}</span><span className="text-yellow-500 font-bold">{s.score}</span></div>))}
                     </div>
                 )}
             </div>
-        ) : (
-            <div className="w-full max-w-6xl flex flex-col items-center justify-between flex-grow relative z-10 pb-4 h-full">
-                
-                {/* RIVALES (TOP) */}
-                <div className="flex justify-center gap-8 w-full mt-4">
-                    {players.filter(p => p.id !== 'player').map((p, i) => (
-                        <div key={p.id} className={`flex flex-col items-center transition-opacity ${turnIndex === players.indexOf(p) ? 'opacity-100 scale-110' : 'opacity-50'}`}>
-                            <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center mb-2 shadow-lg">
-                                <span className="text-xs font-bold">{p.hand.length}</span>
-                            </div>
-                            <span className="text-[10px] font-bold uppercase tracking-widest">{p.name}</span>
-                            {/* Mini cartas reverso */}
-                            <div className="flex -space-x-2 mt-1">
-                                {p.hand.slice(0, 5).map((_:any, idx:number) => <div key={idx} className="w-4 h-6 bg-slate-700 rounded border border-slate-600"></div>)}
-                            </div>
+        ) : view === 'lobby' ? (
+            <div className="w-full max-w-md flex flex-col items-center justify-center flex-grow z-10 animate-in fade-in">
+                <div className="bg-slate-900/80 p-8 rounded-3xl border border-green-500/50 text-center shadow-2xl backdrop-blur-md">
+                    <h2 className="text-2xl font-black text-green-400 mb-2 uppercase tracking-widest">SALA ONLINE</h2>
+                    <p className="text-slate-400 text-sm mb-6">Comparte el código para jugar</p>
+                    
+                    <button onClick={copyCode} className="bg-black/50 border-2 border-dashed border-green-500/30 px-8 py-4 rounded-xl font-mono text-3xl font-bold text-white mb-6 flex items-center gap-4 hover:bg-black/70 transition group relative">
+                        {roomCode} <Copy className="w-6 h-6 text-green-500 group-hover:scale-110 transition"/>
+                        {copied && <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-green-500 text-black text-xs font-bold px-2 py-1 rounded">¡Copiado!</span>}
+                    </button>
+
+                    <div className="w-full mb-8">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 text-left">Jugadores ({players.length}/4)</h3>
+                        <div className="flex flex-col gap-2">
+                            {players.map((p, i) => (
+                                <div key={i} className="flex items-center gap-3 bg-slate-800/50 p-3 rounded-lg border border-slate-700">
+                                    <div className={`w-3 h-3 rounded-full ${p.isHost ? 'bg-yellow-500' : 'bg-green-500'} animate-pulse`}></div>
+                                    <span className="font-bold">{p.name} {p.uid === user?.uid && '(Tú)'}</span>
+                                    {p.isHost && <Crown className="w-4 h-4 text-yellow-500 ml-auto"/>}
+                                </div>
+                            ))}
+                            {[...Array(4-players.length)].map((_,i) => <div key={i} className="bg-slate-800/20 p-3 rounded-lg border border-slate-700/30 text-slate-600 italic">Esperando jugador...</div>)}
                         </div>
-                    ))}
+                    </div>
+
+                    {isHost ? (
+                        <button onClick={startOnlineGame} disabled={players.length < 2} className={`w-full py-4 rounded-xl font-black uppercase tracking-widest transition-all shadow-lg ${players.length >= 2 ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-500/30' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}>
+                            INICIAR PARTIDA
+                        </button>
+                    ) : (
+                        <p className="text-green-400 font-bold animate-pulse">Esperando al anfitrión...</p>
+                    )}
+                </div>
+            </div>
+        ) : (
+            <div className="w-full max-w-7xl flex flex-col items-center justify-between flex-grow relative z-10 pb-2 h-full">
+                
+                {/* RIVALES (TOP & SIDES) */}
+                <div className="flex justify-around w-full mt-2 px-4">
+                    {players.map((p, i) => {
+                        if (i === myPlayerIndex) return null;
+                        const isTurn = turnIndex === i;
+                        // Lógica simple para posicionar 3 rivales: Top, Left, Right (para 4 jugadores)
+                        let posClass = "flex-col items-center";
+                        if (players.length === 4) {
+                            const relativeIdx = (i - myPlayerIndex + players.length) % players.length;
+                            if (relativeIdx === 1) posClass = "flex-col items-start absolute left-4 top-1/3"; // Izquierda
+                            if (relativeIdx === 2) posClass = "flex-col items-center"; // Arriba (Top)
+                            if (relativeIdx === 3) posClass = "flex-col items-end absolute right-4 top-1/3"; // Derecha
+                        }
+
+                        return (
+                            <div key={p.id} className={`flex ${posClass} transition-all p-2 rounded-xl ${isTurn ? 'bg-white/10 scale-105 shadow-lg border border-white/20' : 'opacity-70'}`}>
+                                <div className="relative">
+                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center mb-1 shadow-md">
+                                        <span className="text-sm font-bold">{p.hand.length}</span>
+                                    </div>
+                                    {isTurn && <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full animate-ping"></div>}
+                                </div>
+                                <span className="text-[9px] sm:text-xs font-bold uppercase tracking-widest truncate max-w-[80px]">{p.name}</span>
+                                <div className="flex -space-x-3 mt-1">
+                                    {p.hand.slice(0, Math.min(p.hand.length, 5)).map((_:any, idx:number) => <Card key={idx} hidden small />)}
+                                </div>
+                            </div>
+                        )
+                    })}
                 </div>
 
                 {/* MESA CENTRAL */}
-                <div className="flex gap-8 items-center justify-center my-8">
+                <div className="flex gap-6 items-center justify-center my-4 sm:my-8 relative">
                     {/* MAZO */}
-                    <div onClick={() => turnIndex === 0 && drawCard('player')} className="cursor-pointer relative group">
+                    <div onClick={handleDeckClick} className={`cursor-pointer relative group transition-transform ${turnIndex===myPlayerIndex && isDrawPending===0 ? 'hover:scale-105' : ''}`}>
                         <Card hidden />
-                        <div className="absolute inset-0 flex items-center justify-center"><Plus className="text-white opacity-50 group-hover:opacity-100"/></div>
-                        <span className="absolute -bottom-6 w-full text-center text-[10px] font-bold text-slate-500">ROBAR</span>
+                        {turnIndex === myPlayerIndex && isDrawPending === 0 && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"><Plus className="text-white"/></div>
+                        )}
+                        <span className="absolute -bottom-5 w-full text-center text-[9px] font-bold text-slate-500 tracking-widest">MAZO</span>
                     </div>
 
-                    {/* DESCARTE */}
+                    {/* DESCARTE Y COLOR */}
                     <div className="relative">
                         {discard.length > 0 && <Card card={discard[discard.length-1]} />}
-                        {/* Indicador de Color Activo */}
-                        <div className={`absolute -right-12 top-1/2 -translate-y-1/2 w-4 h-24 rounded-full border border-white/20 ${getColorClass(currentColor).split(' ')[0]}`} title="Color Activo"></div>
+                        {/* Indicador de Sentido */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                             <RotateCw className={`w-24 h-24 text-white/10 transition-all duration-500 ${direction === 1 ? 'animate-[spin_4s_linear_infinite]' : 'animate-[spin_4s_linear_infinite_reverse]'}`}/>
+                        </div>
+                        {/* Indicador Color Activo */}
+                        <div className={`absolute -right-3 -top-3 w-6 h-6 rounded-full border-2 border-white shadow-lg z-20 ${
+                            currentColor === 'red' ? 'bg-red-600' : currentColor === 'blue' ? 'bg-blue-600' : currentColor === 'green' ? 'bg-green-600' : currentColor === 'yellow' ? 'bg-yellow-500' : 'bg-black'
+                        }`} title={`Color: ${currentColor.toUpperCase()}`}></div>
                     </div>
                 </div>
 
-                {/* ALERTAS Y LOG */}
-                <div className="mb-4 text-center">
-                    <p className="text-sm font-bold text-pink-400 animate-pulse">{log}</p>
-                    {isDrawPending > 0 && <p className="text-xs text-red-500 font-bold mt-1">¡ACUMULADO +{isDrawPending}!</p>}
+                {/* LOG Y ALERTA */}
+                <div className="mb-2 text-center h-12 flex flex-col justify-end">
+                    <p className={`text-xs sm:text-sm font-bold transition-all ${turnIndex===myPlayerIndex ? 'text-yellow-400 scale-105' : 'text-slate-400'}`}>{log}</p>
+                    {isDrawPending > 0 && <p className="text-[10px] text-red-500 font-black mt-0.5 animate-pulse">¡ACUMULADO +{isDrawPending}!</p>}
+                    {turnIndex === myPlayerIndex && <p className="text-[10px] text-green-400 font-bold mt-0.5 animate-bounce">¡TU TURNO!</p>}
                 </div>
 
                 {/* MANO DEL JUGADOR */}
-                <div className={`w-full max-w-3xl flex justify-center items-end -space-x-6 sm:-space-x-8 pb-4 transition-opacity ${turnIndex !== 0 ? 'opacity-70 grayscale-[0.5]' : 'opacity-100'}`}>
-                    {players[0].hand.map((card: CardType, i: number) => (
-                        <div key={card.id} style={{ marginBottom: i%2===0 ? 0 : 20 }} className="transition-all hover:z-50 hover:mb-10">
-                            <Card card={card} onClick={() => handlePlayerCardClick(card)} />
-                        </div>
-                    ))}
+                <div className="w-full px-4 pb-2 relative z-20">
+                    <div className={`flex justify-center items-end -space-x-5 sm:-space-x-8 transition-all ${turnIndex !== myPlayerIndex ? 'opacity-60 grayscale-[0.3] pointer-events-none' : ''}`} style={{ perspective: '1000px' }}>
+                        {players[myPlayerIndex]?.hand.map((card: CardType, i: number) => {
+                            const total = players[myPlayerIndex].hand.length;
+                            const rotate = (i - (total - 1) / 2) * 3; // Ligera rotación en abanico
+                            const translateY = Math.abs(i - (total - 1) / 2) * 2; // Arco sutil
+
+                            return (
+                                <div key={card.id} style={{ transform: `rotate(${rotate}deg) translateY(${translateY}px)`, zIndex: i }} className="transition-all duration-300 hover:!rotate-0 hover:!translate-y-[-20px] hover:z-50 origin-bottom">
+                                    <Card card={card} onClick={() => handleCardClick(card)} selectable={turnIndex === myPlayerIndex && isValidPlay(card)} />
+                                </div>
+                            )
+                        })}
+                    </div>
                 </div>
 
                 {/* SELECTOR DE COLOR (MODAL) */}
                 {activeColorSelect && (
-                    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center animate-in fade-in">
-                        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-700 text-center">
-                            <h3 className="text-xl font-black mb-4 text-white">ELIGE COLOR</h3>
+                    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center animate-in fade-in backdrop-blur-sm">
+                        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-700 text-center shadow-2xl">
+                            <h3 className="text-xl font-black mb-6 text-white italic uppercase">ELIGE COLOR</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 {COLORS.map(c => (
-                                    <button key={c} onClick={() => handleColorSelect(c)} className={`w-24 h-24 rounded-xl ${getColorClass(c)} hover:scale-105 transition-transform`}></button>
+                                    <button key={c} onClick={() => handleColorSelect(c)} className={`w-20 h-20 rounded-2xl ${c==='red'?'bg-red-600':c==='blue'?'bg-blue-600':c==='green'?'bg-green-600':'bg-yellow-500'} hover:scale-110 transition-transform shadow-lg border-2 border-black/20`}></button>
                                 ))}
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* CONTROLES EXTRA */}
-                <div className="fixed bottom-4 right-4 flex flex-col gap-2">
-                    <button onClick={() => watchAd('hint')} className="p-3 bg-yellow-600/80 rounded-full border border-yellow-400 hover:scale-110 transition shadow-lg"><Eye className="w-5 h-5"/></button>
+                {/* BOTONES FLOTANTES (REGLAS) */}
+                <div className="fixed right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-40">
+                    <button onClick={() => setShowRules(true)} className="p-3 bg-slate-900/90 rounded-full border border-slate-600 text-slate-300 hover:text-white hover:border-yellow-500 transition-all shadow-lg hover:scale-110 group relative" title="Reglas">
+                        <BookOpen className="w-5 h-5"/>
+                        <span className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-black/80 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">Reglas</span>
+                    </button>
                 </div>
+
+                {/* MODAL REGLAS */}
+                {showRules && (
+                    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 animate-in fade-in backdrop-blur-md" onClick={()=>setShowRules(false)}>
+                        <div className="bg-slate-900 p-8 rounded-3xl border border-slate-700 max-w-lg w-full shadow-2xl relative overflow-y-auto max-h-[80vh]" onClick={e=>e.stopPropagation()}>
+                            <button onClick={()=>setShowRules(false)} className="absolute top-4 right-4 p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition"><ArrowLeft className="w-4 h-4"/></button>
+                            <h2 className="text-2xl font-black text-yellow-500 mb-4 uppercase italic flex items-center gap-2"><BookOpen className="w-6 h-6"/> Reglas del Juego</h2>
+                            <div className="space-y-4 text-sm text-slate-300 font-sans">
+                                <p><strong className="text-white">Objetivo:</strong> Ser el primero en quedarse sin cartas.</p>
+                                <p><strong className="text-white">Cómo jugar:</strong> En tu turno, juega una carta que coincida en <strong className="text-white">COLOR</strong> o <strong className="text-white">VALOR</strong> con la del descarte.</p>
+                                <ul className="list-disc pl-5 space-y-2">
+                                    <li>Si no puedes jugar, debes <strong className="text-white">ROBAR</strong> del mazo. Si la que robas sirve, puedes jugarla.</li>
+                                    <li><strong className="text-yellow-500">+2 / +4:</strong> El siguiente jugador roba esa cantidad y pierde el turno. ¡Se pueden acumular!</li>
+                                    <li><strong className="text-blue-400">Salto (Ø):</strong> El siguiente jugador pierde el turno.</li>
+                                    <li><strong className="text-green-400">Reversa (⟳):</strong> Cambia el sentido del juego.</li>
+                                    <li><strong className="text-purple-400">Comodín (Wild):</strong> Cambia el color activo.</li>
+                                </ul>
+                                <p className="text-xs text-slate-500 mt-4 italic">Gana puntos al finalizar según las cartas que les queden a los rivales.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* PANTALLA FIN */}
                 {winner && (
-                    <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center">
-                        {winner === 'player' ? (
-                            <>
-                                <Trophy className="w-24 h-24 text-yellow-400 animate-bounce mb-4"/>
-                                <h1 className="text-5xl font-black text-white italic">¡VICTORIA!</h1>
-                                <p className="text-slate-400 font-mono mt-2">PUNTOS GANADOS: {score}</p>
-                            </>
+                    <div className="fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center animate-in zoom-in p-4 backdrop-blur-md">
+                        {winner.id === players[myPlayerIndex]?.id ? (
+                            <div className="bg-gradient-to-br from-yellow-600/20 to-slate-900/50 p-10 rounded-3xl border-2 border-yellow-500 text-center shadow-[0_0_50px_rgba(234,179,8,0.3)] relative overflow-hidden">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-yellow-500/20 to-transparent animate-pulse"></div>
+                                <Trophy className="w-24 h-24 text-yellow-400 animate-bounce mx-auto mb-4 relative z-10"/>
+                                <h1 className="text-5xl font-black text-white italic tracking-tighter relative z-10 mb-2">¡VICTORIA!</h1>
+                                <p className="text-yellow-200 font-mono tracking-widest text-sm relative z-10">PUNTOS GANADOS: <span className="font-bold text-lg">{score}</span></p>
+                            </div>
                         ) : (
-                            <>
-                                <AlertCircle className="w-24 h-24 text-red-500 animate-pulse mb-4"/>
-                                <h1 className="text-5xl font-black text-white italic">DERROTA</h1>
-                                <p className="text-slate-400 font-mono mt-2">Inténtalo de nuevo.</p>
-                            </>
+                            <div className="bg-gradient-to-br from-red-900/20 to-slate-900/50 p-10 rounded-3xl border-2 border-red-600 text-center shadow-[0_0_50px_rgba(220,38,38,0.3)]">
+                                <AlertCircle className="w-24 h-24 text-red-600 animate-pulse mx-auto mb-4"/>
+                                <h1 className="text-5xl font-black text-white italic tracking-tighter mb-2">DERROTA</h1>
+                                <p className="text-red-300 font-mono tracking-widest text-sm">Ha ganado {winner.name}.</p>
+                            </div>
                         )}
-                        <button onClick={() => setView('menu')} className="mt-8 px-8 py-3 bg-white text-black font-black rounded-full hover:scale-105 transition">CONTINUAR</button>
+                        <button onClick={() => window.location.reload()} className="mt-8 px-10 py-4 bg-white text-black font-black rounded-full hover:scale-105 hover:bg-slate-200 transition uppercase tracking-widest shadow-xl z-10 flex items-center gap-2">
+                            <RotateCw className="w-5 h-5"/> JUGAR DE NUEVO
+                        </button>
                     </div>
                 )}
             </div>
         )}
-        
-        {view === 'game' && challenge && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-slate-700 px-4 py-1 rounded-full text-[10px] font-bold text-slate-300 flex items-center gap-2">
-                <Trophy className="w-3 h-3 text-yellow-500"/> RETO: {challenge.text}
-            </div>
-        )}
-
-        <div className="mt-auto w-full max-w-md pt-2 opacity-50 relative z-10"><AdSpace type="banner" /><GameChat gameId="global_uno" gameName="NEON UNO" /></div>
+        <div className="mt-auto w-full max-w-md pt-2 opacity-50 relative z-10"><AdSpace type="banner" /><GameChat gameId={roomCode || "global_uno"} gameName="UNO PRO" /></div>
     </div>
   );
 }
