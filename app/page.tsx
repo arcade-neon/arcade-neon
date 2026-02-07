@@ -219,6 +219,17 @@ export default function Home() {
                </div>
             </SoundLink>
 
+{/* NEON UNO */}
+<SoundLink href="/game/uno" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-yellow-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+   <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-yellow-500/50 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all relative z-10">
+     <Layers className="w-10 h-10 text-yellow-500" />
+   </div>
+   <div className="text-center relative z-10">
+     <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NEON UNO</h2>
+     <p className="text-[10px] text-yellow-400 font-bold uppercase tracking-widest">HYPER LOOP</p>
+   </div>
+</SoundLink>
+
          </div>
       </div>
 
