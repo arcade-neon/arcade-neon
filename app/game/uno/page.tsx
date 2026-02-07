@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-// AQUI ESTABA EL ERROR: He añadido 'Cpu' a la lista de imports
+// IMPORTANTE: Aseguramos que todos los iconos estén aquí
 import { ArrowLeft, Users, Zap, Eye, RotateCw, Slash, Plus, Layers, Crown, Sparkles, Trophy, Timer, AlertCircle, PlayCircle, BookOpen, Copy, Check, Cpu } from 'lucide-react';
 import { db, auth } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc, onSnapshot, serverTimestamp, query, orderBy, limit, getDocs, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
@@ -157,15 +157,14 @@ export default function ProUno() {
 
   const isValidPlay = (card: CardType) => {
       const top = discard[discard.length-1];
-      if (isDrawPending > 0) { // Si hay arrastre, solo se puede responder con otra igual o robar
+      if (isDrawPending > 0) {
         if (top.value === 'draw2' && card.value === 'draw2') return true;
         if (top.value === 'draw4' && card.value === 'draw4') return true;
-        return false; // Debe robar
+        return false;
       }
       return card.color === 'black' || card.color === currentColor || card.value === top.value;
   };
 
-  // Función central para ejecutar una jugada (Actualiza estado local o remoto)
   const executePlay = async (playerId: string, card: CardType, chosenColor?: string) => {
       playSound('card');
       let nextDir = direction; let nextSkip = false; let addDraw = 0;
@@ -189,10 +188,6 @@ export default function ProUno() {
       if (nextSkip) {
           actionLog += `. ${players[nextIndex].name} saltado.`;
           nextIndex = (nextIndex + nextDir + players.length) % players.length;
-      }
-
-      if (newDrawPending > 0 && (card.value !== 'draw2' && card.value !== 'draw4')) {
-           // Lógica simplificada de stack
       }
 
       updateGameState({ deck, discard: newDiscard, players: newPlayers, turnIndex: nextIndex, direction: nextDir, currentColor: newColor, isDrawPending: newDrawPending }, actionLog);
@@ -338,53 +333,69 @@ export default function ProUno() {
   const saveScore = async (s: number) => { if(user) await addDoc(collection(db, "scores_uno"), { uid:user.uid, displayName:user.name, score:s, date:serverTimestamp() }); fetchLeaderboard(); };
   const fetchLeaderboard = async () => { const q = query(collection(db, "scores_uno"), orderBy("score", "desc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); };
 
-  // --- COMPONENTE CARTA CLÁSICA MEJORADA ---
+  // --- COMPONENTE CARTA REALISTA (FIXED COLORS) ---
   const Card = ({ card, hidden = false, onClick, small = false, selectable = false }: any) => {
-      const baseClasses = "relative rounded-lg border-2 shadow-md select-none transition-all duration-200 flex items-center justify-center overflow-hidden bg-white";
-      const sizeClasses = small ? "w-10 h-14 text-sm border-slate-300" : "w-20 h-32 sm:w-24 sm:h-36 text-3xl sm:text-4xl border-white";
-      const hoverClasses = selectable ? "cursor-pointer hover:scale-105 hover:-translate-y-2 hover:shadow-xl hover:z-10" : "";
+      const baseClasses = "relative rounded-lg select-none transition-all duration-200 flex items-center justify-center overflow-hidden border shadow-md";
+      const sizeClasses = small ? "w-10 h-14 text-sm border-white/20" : "w-24 h-36 text-4xl border-white/10";
+      const hoverClasses = selectable ? "cursor-pointer hover:scale-105 hover:-translate-y-4 hover:shadow-2xl hover:z-20" : "";
       
-      let bgColor = "bg-slate-800"; let textColor = "text-black";
+      let bgClass = "bg-slate-800";
+      let textClass = "text-black"; // El color del número dentro del óvalo
+      
       if (!hidden) {
-          if (card.color === 'red') bgColor = "bg-red-600";
-          else if (card.color === 'blue') bgColor = "bg-blue-600";
-          else if (card.color === 'green') bgColor = "bg-green-600";
-          else if (card.color === 'yellow') bgColor = "bg-yellow-500";
-          else bgColor = "bg-black"; 
+          if (card.color === 'red') { bgClass = "bg-[#ff5555]"; textClass = "text-[#ff5555]"; }
+          else if (card.color === 'blue') { bgClass = "bg-[#5555ff]"; textClass = "text-[#5555ff]"; }
+          else if (card.color === 'green') { bgClass = "bg-[#55aa55]"; textClass = "text-[#55aa55]"; }
+          else if (card.color === 'yellow') { bgClass = "bg-[#ffaa00]"; textClass = "text-[#ffaa00]"; }
+          else { bgClass = "bg-black"; textClass = "text-black"; } // Wild
       }
 
       const innerContent = (val: string) => {
-          if (val === 'skip') return <Slash className="w-3/4 h-3/4"/>;
-          if (val === 'reverse') return <RotateCw className="w-3/4 h-3/4"/>;
+          if (val === 'skip') return <Slash className="w-full h-full p-1"/>;
+          if (val === 'reverse') return <RotateCw className="w-full h-full p-1"/>;
           if (val === 'draw2') return '+2';
           if (val === 'draw4') return '+4';
-          if (val === 'wild') return <Sparkles className="w-3/4 h-3/4"/>;
+          if (val === 'wild') return <Sparkles className="w-full h-full p-1"/>;
           return val;
       };
 
       if (hidden) return (
-          <div className={`${baseClasses} ${sizeClasses} bg-slate-900 border-slate-700`}>
-             <div className="absolute inset-2 bg-slate-800 rounded opacity-50 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-700 to-transparent"></div>
-             <span className="font-black italic text-slate-700 text-lg">UNO</span>
+          <div className={`${baseClasses} ${sizeClasses} bg-black border-2 border-white`}>
+             <div className="absolute inset-1 bg-red-600 rounded flex items-center justify-center">
+                 <span className="font-black italic text-yellow-400 text-xl -rotate-12 drop-shadow-md">UNO</span>
+             </div>
           </div>
       );
 
       return (
-          <div onClick={onClick} className={`${baseClasses} ${sizeClasses} ${bgColor} ${hoverClasses}`}>
-              <div className="absolute inset-1.5 bg-white rounded-[50%] rotate-[-10deg] shadow-inner flex items-center justify-center">
-                   <span className={`font-black italic ${textColor} drop-shadow-sm`} style={{WebkitTextStroke: '1px black'}}>
+          <div onClick={onClick} className={`${baseClasses} ${sizeClasses} ${bgClass} ${hoverClasses}`}>
+              {/* Óvalo Blanco Central - ROTADO */}
+              <div className="absolute inset-2 bg-white rounded-[50%] rotate-[-15deg] shadow-inner flex items-center justify-center">
+                   {/* Texto/Icono Central - Con borde negro fuerte */}
+                   <span className={`font-black italic ${textClass} drop-shadow-sm flex items-center justify-center w-full h-full`} 
+                         style={{
+                             textShadow: '2px 2px 0px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000'
+                         }}>
                       {innerContent(card.value)}
                    </span>
               </div>
-              {!small && <div className="absolute top-1 left-1 text-xs text-white font-black drop-shadow" style={{WebkitTextStroke: '0.5px black'}}>{card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value.charAt(0).toUpperCase()}</div>}
-              {!small && <div className="absolute bottom-1 right-1 text-xs text-white font-black drop-shadow rotate-180" style={{WebkitTextStroke: '0.5px black'}}>{card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value.charAt(0).toUpperCase()}</div>}
+              
+              {/* Esquina Superior Izquierda (Blanco) */}
+              {!small && <div className="absolute top-1 left-1 text-sm text-white font-black drop-shadow-md">
+                  {card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value.charAt(0).toUpperCase()}
+              </div>}
+              
+              {/* Esquina Inferior Derecha (Blanco - Invertido) */}
+              {!small && <div className="absolute bottom-1 right-1 text-sm text-white font-black drop-shadow-md rotate-180">
+                  {card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value.charAt(0).toUpperCase()}
+              </div>}
           </div>
       );
   };
 
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-2 font-mono text-white overflow-hidden relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-[#050b14] to-black">
+    <div className="min-h-screen bg-[#1a1a1a] flex flex-col items-center p-2 font-mono text-white overflow-hidden relative">
         
         {adState.active && <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center flex-col"><Eye className="w-20 h-20 text-yellow-400 animate-pulse mb-4"/><h2 className="text-2xl font-bold">PUBLICIDAD: {adState.timer}s</h2></div>}
 
@@ -393,7 +404,6 @@ export default function ProUno() {
             <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-3 bg-slate-900/80 rounded-full border border-slate-700 hover:border-yellow-500 transition-all"><ArrowLeft className="w-5 h-5"/></button>
             <div className="text-center">
                 <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-yellow-500 to-blue-500 tracking-tighter drop-shadow-xl">UNO PRO</h1>
-                <p className="text-[10px] tracking-[0.4em] text-slate-400 font-bold uppercase">CLASSIC EDITION</p>
             </div>
             {view === 'game' ? (
                 <div className="flex gap-2">
