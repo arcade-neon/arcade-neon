@@ -7,15 +7,15 @@ import {
   Gamepad2, User, Trophy, Search, Hash, 
   Grid3X3, Video, Gamepad, Ghost, Swords, 
   Skull, Type, Activity, Bomb, LayoutList, 
-  Brain, Circle, Share2, Anchor, Layers // Importa todos tus iconos
+  Brain, Circle, Share2, Anchor, Layers 
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import AdSpace from '@/components/AdSpace';
-import { useAudio } from '@/contexts/AudioContext'; // <--- IMPORTANTE
+import { useAudio } from '@/contexts/AudioContext';
 
 export default function Home() {
   const [user, setUser] = useState(null);
-  const { playSound } = useAudio(); // <--- HOOK DE AUDIO
+  const { playSound } = useAudio();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -25,18 +25,17 @@ export default function Home() {
   }, []);
 
   const scrollToGames = () => {
-    playSound('click'); // Sonido al clickar
+    playSound('click');
     const section = document.getElementById('games-section');
     if (section) section.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Función auxiliar para envolver Links con sonido
   const SoundLink = ({ href, className, children }) => (
     <Link 
       href={href} 
       className={className}
-      onMouseEnter={() => playSound('hover')} // Sonido Hover
-      onClick={() => playSound('click')}      // Sonido Click
+      onMouseEnter={() => playSound('hover')} 
+      onClick={() => playSound('click')}
     >
       {children}
     </Link>
@@ -59,7 +58,6 @@ export default function Home() {
            <p className="text-[10px] md:text-xs text-slate-500 font-bold tracking-[0.3em] pl-1">JUEGOS TÓXICOS</p>
         </div>
         
-        {/* BOTÓN PERFIL */}
         <SoundLink href="/profile" className="flex items-center gap-3 bg-slate-900 pl-4 pr-1 py-1 rounded-full border border-slate-800 hover:border-pink-500 transition-all group shadow-lg">
            <span className="text-[10px] font-bold text-slate-300 group-hover:text-white hidden sm:block">
              {user ? 'MI PERFIL' : 'LOGIN'}
@@ -70,13 +68,12 @@ export default function Home() {
         </SoundLink>
       </div>
 
-      {/* SECCIÓN HERO / NIVEL */}
+      {/* SECCIÓN NIVEL */}
       <div className="w-full max-w-4xl mb-12 relative">
          <div className="flex justify-between items-end mb-4">
             <h2 className="text-xl font-bold text-yellow-500 flex items-center gap-2">
               ZONA DE RETOS
             </h2>
-            {/* BOTÓN CREAR SALA */}
             <button onClick={scrollToGames} onMouseEnter={() => playSound('hover')} className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-[10px] font-bold text-white hover:bg-slate-800 hover:border-blue-500 transition flex items-center gap-2 group">
                <Share2 className="w-3 h-3 group-hover:text-blue-500 transition-colors" /> CREAR SALA
             </button>
@@ -97,12 +94,43 @@ export default function Home() {
          </div>
       </div>
 
-      {/* GRID DE JUEGOS - AHORA CON SONIDO */}
+      {/* GRID DE JUEGOS */}
       <div id="games-section" className="w-full max-w-4xl">
          <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-6 uppercase">Arcade Disponible</p>
          
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
+            {/* --- UNO (ACTUALIZADO) --- */}
+            <SoundLink href="/game/uno" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               {/* ICONO PERSONALIZADO: MINI CARTA */}
+               <div className="relative w-16 h-20 group-hover:-translate-y-2 transition-transform duration-300">
+                   {/* Carta trasera (Amarilla) */}
+                   <div className="absolute inset-0 bg-yellow-500 rounded-lg border-2 border-white transform rotate-12 translate-x-4 shadow-md"></div>
+                   {/* Carta delantera (Roja) */}
+                   <div className="absolute inset-0 bg-red-600 rounded-lg border-2 border-white transform -rotate-6 shadow-xl flex items-center justify-center z-10">
+                       <div className="w-10 h-14 bg-white rounded-[50%] transform -rotate-12 flex items-center justify-center border border-red-200 shadow-inner">
+                            <span className="text-red-600 font-black text-2xl italic" style={{textShadow: '1px 1px 0 black'}}>1</span>
+                       </div>
+                   </div>
+               </div>
+               
+               <div className="text-center relative z-10 mt-2">
+                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1 drop-shadow-md">UNO</h2>
+                 <p className="text-[9px] text-red-400 font-bold uppercase tracking-widest bg-red-950/30 px-2 py-1 rounded">JUEGO FAMOSO DE CARTAS</p>
+               </div>
+            </SoundLink>
+
+            {/* NAVAL ELITE */}
+            <SoundLink href="/game/battleship" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="p-4 bg-blue-950 rounded-2xl border border-blue-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all relative z-10">
+                 <Anchor className="w-10 h-10 text-cyan-400" />
+               </div>
+               <div className="text-center relative z-10">
+                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NAVAL ELITE</h2>
+                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">TACTICAL WARFARE</p>
+               </div>
+            </SoundLink>
+
             {/* PIEDRA PAPEL TIJERA */}
             <SoundLink href="/game/rps" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all">
@@ -117,6 +145,17 @@ export default function Home() {
                  <Hash className="w-10 h-10 text-cyan-400" />
                </div>
                <h2 className="text-xl font-black text-white italic tracking-tighter">NEON 3 EN RAYA</h2>
+            </SoundLink>
+
+            {/* NEON SOLITAIRE */}
+            <SoundLink href="/game/solitaire" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
+                 <Layers className="w-10 h-10 text-pink-500" />
+               </div>
+               <div className="text-center relative z-10">
+                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">SOLITARIO PRO</h2>
+                 <p className="text-[10px] text-pink-400 font-bold uppercase tracking-widest">CYBER DECK</p>
+               </div>
             </SoundLink>
 
             {/* NEON SNAKE */}
@@ -175,28 +214,6 @@ export default function Home() {
                <h2 className="text-xl font-black text-white italic tracking-tighter">TETRIX</h2>
             </SoundLink>
 
-            {/* THANIA LA CANTINERA */}
-            <SoundLink href="/game/battleship" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-blue-950 rounded-2xl border border-blue-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all relative z-10">
-                 <Anchor className="w-10 h-10 text-cyan-400" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NAVAL ELITE</h2>
-                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">TACTICAL WARFARE</p>
-               </div>
-            </SoundLink>
-
-            {/* NEON SOLITAIRE */}
-            <SoundLink href="/game/solitaire" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
-                 <Layers className="w-10 h-10 text-pink-500" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">SOLITARIO PRO</h2>
-                 <p className="text-[10px] text-pink-400 font-bold uppercase tracking-widest">CYBER DECK</p>
-               </div>
-            </SoundLink>
-
             {/* EL AHORCADO */}
             <SoundLink href="/game/hangman" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-rose-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-rose-500/50 group-hover:shadow-[0_0_20px_rgba(244,63,94,0.4)] transition-all relative z-10">
@@ -218,17 +235,6 @@ export default function Home() {
                  <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">CUIDADO QUE EXPLOTA</p>
                </div>
             </SoundLink>
-
-{/* NEON UNO */}
-<SoundLink href="/game/uno" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-yellow-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-   <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-yellow-500/50 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all relative z-10">
-     <Layers className="w-10 h-10 text-yellow-500" />
-   </div>
-   <div className="text-center relative z-10">
-     <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NEON UNO</h2>
-     <p className="text-[10px] text-yellow-400 font-bold uppercase tracking-widest">HYPER LOOP</p>
-   </div>
-</SoundLink>
 
          </div>
       </div>
