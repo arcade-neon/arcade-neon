@@ -9,6 +9,7 @@ import { collection, addDoc, doc, updateDoc, onSnapshot, getDoc, serverTimestamp
 import AdSpace from '@/components/AdSpace';
 import GameChat from '@/components/GameChat';
 import { useEconomy } from '@/contexts/EconomyContext';
+import { useAudio } from '@/contexts/AudioContext';
 
 // --- CONFIGURACIÓN ---
 const BOARD_SIZE = 10;
