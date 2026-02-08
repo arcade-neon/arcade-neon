@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, Trophy, Target, Zap, Brain, Crown, 
-  Medal, TrendingUp, Activity, Shield, Dna, Anchor, Layers, Swords 
+  Medal, Activity, Shield, Dna, Anchor, Layers, Swords 
 } from 'lucide-react';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -13,7 +13,7 @@ import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip 
 } from 'recharts';
 import AdSpace from '@/components/AdSpace';
-import { useInventory } from '@/contexts/InventoryContext'; // <--- IMPORTANTE
+import { useInventory } from '@/contexts/InventoryContext';
 
 // --- CONFIGURACIÓN DE MEDALLAS ---
 const ACHIEVEMENTS = [
@@ -26,7 +26,7 @@ const ACHIEVEMENTS = [
 export default function ProfilePro() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { equipped } = useInventory(); // <--- LEER OBJETOS EQUIPADOS
+  const { equipped } = useInventory(); 
   
   // ESTADÍSTICAS DEL JUGADOR
   const [stats, setStats] = useState({
@@ -105,16 +105,15 @@ export default function ProfilePro() {
     }
   };
 
-  // --- LOGICA VISUAL DE SKINS ---
   const getFrameStyle = () => {
       if (equipped?.frame === 'frame_gold') return "border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)] bg-gradient-to-b from-yellow-900 to-black";
       if (equipped?.frame === 'frame_neon') return "border-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.8)] animate-pulse bg-black";
-      return "border-slate-700 bg-gradient-to-br from-slate-800 to-black"; // Default
+      return "border-slate-700 bg-gradient-to-br from-slate-800 to-black"; 
   };
 
   const getTitleBadge = () => {
       if (equipped?.title === 'title_boss') return <div className="mt-2 bg-red-600 text-white px-3 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-red-400 shadow-lg animate-bounce">THE BOSS</div>;
-      return <div className="mt-2 text-xs text-cyan-400 font-bold uppercase tracking-widest">Jugador Pro</div>; // Default
+      return <div className="mt-2 text-xs text-cyan-400 font-bold uppercase tracking-widest">Jugador Pro</div>;
   };
 
   if (loading) return <div className="min-h-screen bg-[#050b14] flex items-center justify-center text-cyan-500 animate-pulse">CARGANDO PERFIL...</div>;
@@ -130,13 +129,10 @@ export default function ProfilePro() {
 
   return (
     <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-4 font-mono text-white select-none relative overflow-x-hidden">
-        
-        {/* FONDO ANIMADO */}
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
         <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-purple-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-        {/* HEADER */}
         <div className="w-full max-w-4xl flex justify-between items-center mb-8 z-10">
             <Link href="/" className="p-3 bg-slate-900/80 rounded-full border border-slate-700 hover:border-cyan-500 transition-all group">
                 <ArrowLeft className="w-5 h-5 text-slate-400 group-hover:text-cyan-500"/>
@@ -147,24 +143,14 @@ export default function ProfilePro() {
             </div>
         </div>
 
-        {/* TARJETA PRINCIPAL */}
         <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 relative z-10">
-            
-            {/* COLUMNA 1: INFO USUARIO + SKINS APLICADAS */}
             <div className="md:col-span-1 bg-slate-900/80 backdrop-blur-md p-6 rounded-3xl border border-slate-700 flex flex-col items-center text-center shadow-2xl relative overflow-hidden group">
-                
-                {/* AVATAR CON SKIN DE MARCO */}
                 <div className={`w-28 h-28 rounded-full border-4 mb-4 flex items-center justify-center relative transition-all duration-500 ${getFrameStyle()}`}>
                     <span className="text-4xl font-black text-white drop-shadow-md">{user.displayName ? user.displayName[0].toUpperCase() : 'U'}</span>
                     <div className="absolute -bottom-3 px-3 py-1 bg-black/80 border border-slate-600 rounded-full text-[10px] font-bold text-white shadow-md">LVL {stats.level}</div>
                 </div>
-                
                 <h2 className="text-xl font-bold text-white mb-1">{user.displayName || 'Comandante'}</h2>
-                
-                {/* TÍTULO EQUIPADO */}
                 {getTitleBadge()}
-
-                {/* BARRA DE XP */}
                 <div className="w-full mb-4 mt-6">
                     <div className="flex justify-between text-[10px] text-slate-400 mb-1 font-bold">
                         <span>XP ACTUAL</span>
@@ -174,7 +160,6 @@ export default function ProfilePro() {
                         <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-1000" style={{ width: `${stats.xp}%` }}></div>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-2 w-full">
                     <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700">
                         <Trophy className="w-5 h-5 text-yellow-500 mx-auto mb-1"/>
@@ -189,12 +174,10 @@ export default function ProfilePro() {
                 </div>
             </div>
 
-            {/* COLUMNA 2 & 3: RADAR CHART */}
             <div className="md:col-span-2 bg-slate-900/80 backdrop-blur-md p-6 rounded-3xl border border-slate-700 shadow-2xl flex flex-col md:flex-row items-center relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-50">
                     <Dna className="w-24 h-24 text-slate-800"/>
                 </div>
-                
                 <div className="w-full h-[250px] md:w-1/2 relative z-10">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center md:text-left flex items-center gap-2">
                         <Activity className="w-4 h-4 text-cyan-500"/> Análisis de Rendimiento
@@ -209,7 +192,6 @@ export default function ProfilePro() {
                         </RadarChart>
                     </ResponsiveContainer>
                 </div>
-
                 <div className="w-full md:w-1/2 md:pl-6 mt-4 md:mt-0 relative z-10">
                     <h4 className="text-lg font-black text-white italic mb-4">APTITUDES DE COMBATE</h4>
                     <div className="space-y-3">
@@ -229,7 +211,6 @@ export default function ProfilePro() {
             </div>
         </div>
 
-        {/* SECCIÓN MEDALLAS */}
         <div className="w-full max-w-4xl relative z-10">
             <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                 <Medal className="w-4 h-4 text-purple-500"/> Logros y Condecoraciones
@@ -251,7 +232,6 @@ export default function ProfilePro() {
                 })}
             </div>
         </div>
-
         <div className="mt-12 opacity-50 w-full max-w-4xl"><AdSpace type="banner" /></div>
     </div>
   );
