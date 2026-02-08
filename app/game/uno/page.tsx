@@ -331,7 +331,7 @@ export default function ProUno() {
   const saveScore = async (s: number) => { if(user) await addDoc(collection(db, "scores_uno"), { uid:user.uid, displayName:user.name, score:s, date:serverTimestamp() }); fetchLeaderboard(); };
   const fetchLeaderboard = async () => { const q = query(collection(db, "scores_uno"), orderBy("score", "desc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); };
 
-  // --- CARTA VISUAL (CORREGIDA: SÍMBOLOS CON BORDE NEGRO) ---
+  // --- CARTA VISUAL ---
   const Card = ({ card, hidden = false, onClick, small = false, selectable = false, isSelected = false }: any) => {
       const baseClasses = "relative rounded-xl select-none transition-all duration-300 flex items-center justify-center overflow-hidden shadow-md hover:shadow-xl";
       const sizeClasses = small ? "w-12 h-16 text-base" : "w-28 h-40 text-5xl sm:w-32 sm:h-48 sm:text-6xl";
@@ -340,7 +340,6 @@ export default function ProUno() {
         : selectable ? "cursor-pointer hover:scale-105 hover:-translate-y-3 z-10 hover:z-20" : "";
       
       let bgGradient = "bg-slate-800";
-      // Ahora usamos text-color del mismo color que la carta para el efecto de borde
       let symbolColor = "text-white"; 
       let borderColor = "border-white/20";
 
@@ -353,7 +352,6 @@ export default function ProUno() {
       }
 
       const innerContent = (val: string) => {
-          // AHORA LOS ICONOS HEREDAN EL COLOR (text-current) Y TIENEN BORDE (drop-shadow)
           const strokeStyle = { filter: "drop-shadow(2px 2px 0px black) drop-shadow(-1px -1px 0px black)" };
           
           if (val === 'skip') return <Ban strokeWidth={3} className="w-full h-full p-2" style={strokeStyle}/>;
@@ -362,7 +360,6 @@ export default function ProUno() {
           if (val === 'draw4') return <div className="relative w-full h-full flex items-center justify-center"><Layers className="w-full h-full p-2 text-green-500 absolute top-1 left-1 opacity-50"/><span className="relative z-10 font-black text-5xl sm:text-6xl text-white" style={{ WebkitTextStroke: '2px black', textShadow: '2px 2px 0 #000' }}>+4</span></div>;
           if (val === 'wild') return <Sparkles className="w-full h-full p-1 text-purple-600" style={strokeStyle}/>;
           
-          // Números normales
           return <span className="flex items-center justify-center w-full h-full font-black text-6xl sm:text-7xl" style={{ WebkitTextStroke: '2px black', textShadow: '4px 4px 0 #000' }}>{val}</span>;
       };
 
@@ -376,15 +373,12 @@ export default function ProUno() {
 
       return (
           <div onClick={onClick} className={`${baseClasses} ${sizeClasses} ${bgGradient} border-[4px] border-white ${transformClasses} relative group`}>
-              {/* Óvalo Blanco Inclinado */}
               <div className="absolute inset-1.5 bg-white rounded-[50%] rotate-[-15deg] shadow-[inset_0_2px_5px_rgba(0,0,0,0.2)] flex items-center justify-center z-10 overflow-hidden">
-                   {/* Símbolo Central: TIENE EL COLOR DE LA CARTA + BORDE NEGRO */}
                    <div className={`flex items-center justify-center w-full h-full scale-110 ${symbolColor}`}>
                       {innerContent(card.value)}
                    </div>
               </div>
               
-              {/* Esquinas (BLANCAS siempre) */}
               {!small && <div className="absolute top-1 left-1 text-lg text-white font-black drop-shadow-[1px_1px_0_#000]">
                   {card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value === 'wild' ? 'W' : card.value === 'skip' ? 'Ø' : card.value === 'reverse' ? '⇄' : card.value}
               </div>}
@@ -444,7 +438,7 @@ export default function ProUno() {
                 </div>
             </div>
         ) : (
-            <div className="w-full max-w-7xl flex flex-col items-center justify-between flex-grow relative z-10 pb-2 h-full">
+            <div className="w-full max-w-7xl flex flex-col items-center justify-between flex-grow relative z-10 pb-32 h-full">
                 {/* RIVALES */}
                 <div className="flex justify-around w-full mt-4 px-4">
                     {players.map((p, i) => {
@@ -487,25 +481,31 @@ export default function ProUno() {
                     {turnIndex === myPlayerIndex && <p className="text-xs text-green-400 font-black mt-1 animate-bounce uppercase tracking-wider bg-green-950/50 px-3 py-1 rounded-full mx-auto inline-block border border-green-500/30">¡Tu Turno!</p>}
                 </div>
 
-                {/* MANO + BOTÓN JUGAR */}
-                <div className="w-full px-4 pb-4 relative z-30 flex flex-col items-center gap-4">
+                {/* ÁREA DEL JUGADOR (MANO Y BOTÓN DE JUGAR) - FIXED: SCROLLABLE */}
+                <div className="w-full fixed bottom-0 left-0 z-30 flex flex-col items-center pb-2 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a]/90 to-transparent pt-10">
+                    
+                    {/* BOTÓN JUGAR SELECCIONADAS */}
                     {selectedCardIds.length > 0 && turnIndex === myPlayerIndex && (
-                        <button onClick={playSelectedCards} className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black py-3 px-8 rounded-full shadow-lg hover:shadow-green-500/50 transition-all scale-105 active:scale-95 flex items-center gap-2 animate-in slide-in-from-bottom">
+                        <button onClick={playSelectedCards} className="mb-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black py-3 px-8 rounded-full shadow-[0_0_20px_rgba(34,197,94,0.5)] transition-all scale-105 active:scale-95 flex items-center gap-2 animate-in slide-in-from-bottom z-40">
                             <Hand className="w-5 h-5"/> JUGAR {selectedCardIds.length} CARTA(S)
                         </button>
                     )}
-                    <div className={`flex justify-center items-end -space-x-6 sm:-space-x-10 transition-all py-6 px-2 ${turnIndex !== myPlayerIndex ? 'opacity-70 grayscale-[0.3] pointer-events-none' : ''}`} style={{ perspective: '1000px' }}>
-                        {players[myPlayerIndex]?.hand.map((card: CardType, i: number) => {
-                            const total = players[myPlayerIndex].hand.length;
-                            const rotate = (i - (total - 1) / 2) * 3; 
-                            const translateY = Math.abs(i - (total - 1) / 2) * 4;
-                            const isSelected = selectedCardIds.includes(card.id);
-                            return (
-                                <div key={card.id} style={{ transform: `rotate(${rotate}deg) translateY(${translateY}px)`, zIndex: i }} className="origin-bottom transition-all duration-300">
-                                    <Card card={card} onClick={() => handleCardClick(card)} selectable={turnIndex === myPlayerIndex} isSelected={isSelected}/>
-                                </div>
-                            )
-                        })}
+
+                    {/* MANO CON SCROLL */}
+                    <div className="w-full overflow-x-auto px-4 pb-4 no-scrollbar">
+                        <div className={`flex justify-center min-w-max mx-auto items-end -space-x-5 sm:-space-x-10 transition-all py-2 ${turnIndex !== myPlayerIndex ? 'opacity-70 grayscale-[0.3] pointer-events-none' : ''}`} style={{ perspective: '1000px' }}>
+                            {players[myPlayerIndex]?.hand.map((card: CardType, i: number) => {
+                                const total = players[myPlayerIndex].hand.length;
+                                const rotate = (i - (total - 1) / 2) * 2; 
+                                const translateY = Math.abs(i - (total - 1) / 2) * 3;
+                                const isSelected = selectedCardIds.includes(card.id);
+                                return (
+                                    <div key={card.id} style={{ transform: `rotate(${rotate}deg) translateY(${translateY}px)`, zIndex: i }} className="origin-bottom transition-all duration-300">
+                                        <Card card={card} onClick={() => handleCardClick(card)} selectable={turnIndex === myPlayerIndex} isSelected={isSelected}/>
+                                    </div>
+                                )
+                            })}
+                        </div>
                     </div>
                 </div>
 
@@ -515,7 +515,7 @@ export default function ProUno() {
                         <div className="bg-slate-900 p-8 rounded-[2rem] border-2 border-slate-700 text-center shadow-2xl max-w-sm w-full mx-4">
                             <h3 className="text-2xl font-black mb-8 text-white italic uppercase bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 animate-pulse">Elige Color</h3>
                             <div className="grid grid-cols-2 gap-6">
-                                {COLORS.map(c => (<button key={c} onClick={() => handleColorSelect(c)} className={`w-full aspect-square rounded-2xl ${c==='red'?'bg-red-600':c==='blue'?'bg-blue-600':c==='green'?'bg-green-600':'bg-yellow-500'} hover:scale-105 active:scale-95 transition-all shadow-xl border-4 border-white/10`}></button>))}
+                                {COLORS.map(c => (<button key={c} onClick={() => handleColorSelect(c)} className={`w-full aspect-square rounded-2xl ${c==='red'?'bg-gradient-to-br from-red-500 to-red-700':c==='blue'?'bg-gradient-to-br from-blue-500 to-blue-700':c==='green'?'bg-gradient-to-br from-green-500 to-green-700':'bg-gradient-to-br from-yellow-400 to-yellow-600'} hover:scale-105 active:scale-95 transition-all shadow-xl border-4 border-white/10`}></button>))}
                             </div>
                         </div>
                     </div>
