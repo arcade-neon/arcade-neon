@@ -8,6 +8,7 @@ import { db, auth } from '@/lib/firebase';
 import { collection, addDoc, doc, updateDoc, onSnapshot, getDoc, serverTimestamp, query, orderBy, limit, getDocs, setDoc } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace';
 import GameChat from '@/components/GameChat';
+import { useEconomy } from '@/contexts/EconomyContext';
 
 // --- CONFIGURACIÓN ---
 const BOARD_SIZE = 10;
@@ -29,6 +30,8 @@ const createEmptyBoard = () => Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_S
 export default function NavalElitePro() {
   const [view, setView] = useState('menu');
   const [user, setUser] = useState(null);
+  const { playSound } = useAudio();
+  const { addCoins } = useEconomy(); // <--- IMPORTAMOS LA ECONOMÍA
   
   // ESTADO JUEGO
   const [phase, setPhase] = useState('placement'); 
@@ -209,17 +212,19 @@ export default function NavalElitePro() {
       }
   };
 
-  // --- CORRECCIÓN EN CHECK GAMEOVER ---
+// --- CORRECCIÓN EN CHECK GAMEOVER ---
   const checkGameOver = (boardToCheck, potentialWinner) => {
       const totalHits = boardToCheck.flat().filter(cell => cell === CELL.HIT || cell === CELL.SUNK).length;
       const totalShipParts = SHIP_TYPES.reduce((sum, s) => sum + s.size, 0);
       if (totalHits >= totalShipParts) {
-         // Si el ganador es 'player' (yo), asignamos mi UID para que el renderizado coincida
-         // Si es 'opponent', asignamos 'opponent'
          const winnerId = potentialWinner === 'player' ? user?.uid : 'opponent';
          setWinner(winnerId);
          
-         if (potentialWinner === 'player') saveScore(difficulty === 'hard' ? 2000 : 1000);
+         if (potentialWinner === 'player') {
+             saveScore(difficulty === 'hard' ? 2000 : 1000);
+             addCoins(100, "Victoria Naval Elite"); // <--- ¡AÑADE ESTA LÍNEA AQUÍ! 💰
+         }
+         
          if (view.includes('pvp') && potentialWinner === 'player') updateDoc(doc(db, "matches_battleship", roomCode), { winner: user.uid });
       }
   };

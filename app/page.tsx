@@ -238,6 +238,18 @@ export default function Home() {
                </div>
             </SoundLink>
 
+{/* BLACKJACK (NUEVO) */}
+            <SoundLink href="/game/blackjack" className="group relative bg-gradient-to-br from-slate-900 to-black border border-green-500/50 rounded-2xl p-8 hover:border-green-400 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] shadow-[0_0_20px_rgba(22,163,74,0.15)]">
+               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+               <div className="p-4 bg-green-950 rounded-full border-2 border-green-600 group-hover:shadow-[0_0_30px_rgba(22,163,74,0.6)] transition-all relative z-10">
+                 <div className="text-3xl">♠️</div>
+               </div>
+               <div className="text-center relative z-10">
+                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1">NEON 21</h2>
+                 <p className="text-[9px] text-green-400 font-bold uppercase tracking-widest bg-green-900/50 px-2 py-1 rounded border border-green-800">CASINO APUESTAS</p>
+               </div>
+            </SoundLink>
+
          </div>
       </div>
 

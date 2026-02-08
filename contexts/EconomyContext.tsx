@@ -17,9 +17,9 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
   const [coins, setCoins] = useState(0);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const { playSound } = useAudio(); // Usaremos esto para sonido de monedas
+  const { playSound } = useAudio(); 
 
-  // Escuchar usuario
+  // Detectar usuario
   useEffect(() => {
     const unsubAuth = auth.onAuthStateChanged((u) => {
       setUser(u);
@@ -31,7 +31,7 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
     return () => unsubAuth();
   }, []);
 
-  // Escuchar saldo en tiempo real
+  // Sincronizar Monedas en Tiempo Real
   useEffect(() => {
     if (!user) return;
     const userRef = doc(db, "users", user.uid);
@@ -40,7 +40,7 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
       if (docSnap.exists()) {
         setCoins(docSnap.data().coins || 0);
       } else {
-        // Si el usuario no tiene perfil, crearlo con regalo de bienvenida
+        // Regalo de Bienvenida: 100 Monedas
         setDoc(userRef, { coins: 100, email: user.email, joinedAt: new Date() }, { merge: true });
         setCoins(100);
       }
@@ -50,7 +50,7 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
     return () => unsubCoin();
   }, [user]);
 
-  // Función para INGRESAR dinero
+  // Función: INGRESAR DINERO
   const addCoins = async (amount: number, reason: string) => {
     if (!user) return;
     try {
@@ -59,20 +59,18 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
         coins: increment(amount),
         history: arrayUnion({ type: 'income', amount, reason, date: new Date().toISOString() })
       });
-      
-      // Reproducir sonido de moneda (si tienes un archivo coin.mp3 sería ideal, si no usa 'win')
-      // playSound('coin'); 
-      console.log(`🤑 Ingresados ${amount} por ${reason}`);
+      // Aquí podrías poner un sonido de "Cash Register" si lo tuvieras
+      console.log(`🤑 +${amount} monedas por: ${reason}`);
     } catch (e) {
-      console.error("Error adding coins:", e);
+      console.error("Error al sumar monedas:", e);
     }
   };
 
-  // Función para GASTAR dinero
+  // Función: GASTAR DINERO (Para la futura tienda)
   const spendCoins = async (amount: number, item: string): Promise<boolean> => {
     if (!user) return false;
     if (coins < amount) {
-      alert("❌ Fondos insuficientes. ¡Juega más para ganar monedas!");
+      alert("❌ Fondos insuficientes. ¡Gana partidas para conseguir más!");
       return false;
     }
 
@@ -84,7 +82,7 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
       });
       return true;
     } catch (e) {
-      console.error("Error spending coins:", e);
+      console.error("Error al gastar monedas:", e);
       return false;
     }
   };
@@ -98,6 +96,6 @@ export const EconomyProvider = ({ children }: { children: React.ReactNode }) => 
 
 export const useEconomy = () => {
   const context = useContext(EconomyContext);
-  if (context === undefined) throw new Error('useEconomy must be used within an EconomyProvider');
+  if (context === undefined) throw new Error('useEconomy debe usarse dentro de EconomyProvider');
   return context;
 };

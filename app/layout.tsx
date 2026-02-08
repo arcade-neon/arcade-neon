@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-// IMPORTACIONES
+// IMPORTAMOS LOS CONTEXTOS
 import { AudioProvider } from "@/contexts/AudioContext";
 import { EconomyProvider } from "@/contexts/EconomyContext"; // <--- NUEVO
 import VolumeControl from "@/components/VolumeControl";
@@ -10,7 +10,7 @@ import WalletBar from "@/components/WalletBar"; // <--- NUEVO
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Daytha Rivals",
+  title: "DAYTHA RIVALS",
   description: "Desafía. Compite. Domina.",
 };
 
@@ -23,15 +23,14 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <AudioProvider>
-          {/* ENVOLVEMOS CON EL SISTEMA DE ECONOMÍA */}
+          {/* SISTEMA DE ECONOMÍA GLOBAL */}
           <EconomyProvider>
             {children}
             
-            {/* BARRA DE MONEDAS FLOTANTE */}
+            {/* COMPONENTES FLOTANTES GLOBALES */}
             <WalletBar />
-            
-            {/* CONTROL DE VOLUMEN FLOTANTE */}
             <VolumeControl />
+            
           </EconomyProvider>
         </AudioProvider>
       </body>
