@@ -250,6 +250,17 @@ export default function Home() {
                </div>
             </SoundLink>
 
+{/* TIENDA */}
+            <SoundLink href="/shop" className="group relative bg-slate-900 border border-purple-500/30 rounded-2xl p-8 hover:border-purple-400 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
+               <div className="p-4 bg-purple-950/50 rounded-full border border-purple-500/50 group-hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all">
+                 <ShoppingCart className="w-10 h-10 text-purple-400" />
+               </div>
+               <div className="text-center">
+                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1">TIENDA</h2>
+                 <p className="text-[9px] text-purple-300 font-bold uppercase tracking-widest">SKINS & UPGRADES</p>
+               </div>
+            </SoundLink>
+            
          </div>
       </div>
 

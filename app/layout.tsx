@@ -6,6 +6,7 @@ import { AudioProvider } from "@/contexts/AudioContext";
 import { EconomyProvider } from "@/contexts/EconomyContext"; // <--- NUEVO
 import VolumeControl from "@/components/VolumeControl";
 import WalletBar from "@/components/WalletBar"; // <--- NUEVO
+import { InventoryProvider } from "@/contexts/InventoryContext"; // <--- IMPORTAR
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,14 +24,21 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <AudioProvider>
-          {/* SISTEMA DE ECONOMÍA GLOBAL */}
+          {/* 1. ECONOMÍA (El Banco) */}
           <EconomyProvider>
-            {children}
             
-            {/* COMPONENTES FLOTANTES GLOBALES */}
-            <WalletBar />
-            <VolumeControl />
-            
+            {/* 2. INVENTARIO (La Tienda y tus objetos) - AQUI VA EL CAMBIO */}
+            <InventoryProvider>
+              
+              {children}
+              
+              {/* COMPONENTES FLOTANTES */}
+              <WalletBar />
+              <VolumeControl />
+
+            </InventoryProvider>
+            {/* ----------------------------------------------------------- */}
+
           </EconomyProvider>
         </AudioProvider>
       </body>
