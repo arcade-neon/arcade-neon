@@ -9,6 +9,7 @@ import { collection, addDoc, doc, updateDoc, onSnapshot, serverTimestamp, query,
 import AdSpace from '@/components/AdSpace';
 import GameChat from '@/components/GameChat';
 import { useAudio } from '@/contexts/AudioContext';
+import { useEconomy } from '@/contexts/EconomyContext';
 
 // --- CONFIGURACIÓN ---
 const COLORS = ['red', 'blue', 'green', 'yellow'];
@@ -43,6 +44,8 @@ export default function ProUno() {
   const [view, setView] = useState('menu');
   const [user, setUser] = useState<any>(null);
   const { playSound } = useAudio();
+  // 2. ACTIVAMOS LA ECONOMÍA
+  const { addCoins } = useEconomy();
 
   // ESTADO JUEGO
   const [gameMode, setGameMode] = useState<'pve' | 'pvp'>('pve');
@@ -55,6 +58,8 @@ export default function ProUno() {
   const [winner, setWinner] = useState<any>(null);
   const [isDrawPending, setIsDrawPending] = useState(0);
   const [log, setLog] = useState("Bienvenido a UNO PRO");
+  // NUEVO: Contador de movimientos para forzar reactividad en la IA
+  const [moveCount, setMoveCount] = useState(0);
 
   // MULTI-SELECCIÓN Y ONLINE
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
@@ -107,14 +112,15 @@ export default function ProUno() {
       }
   }, [gameMode, roomCode, view, user]);
 
-  // --- IA BOT (FIX CUELGUES) ---
+  // --- IA BOT (FIX CUELGUES & REPETICIÓN DE TURNO) ---
   useEffect(() => {
     let timer: NodeJS.Timeout;
+    // Ahora depende de 'moveCount' también. Si la CPU repite turno, moveCount cambia y esto se ejecuta de nuevo.
     if (gameMode === 'pve' && view === 'game' && !winner && players[turnIndex]?.isBot) {
         timer = setTimeout(() => playBotTurn(), 1200);
     }
     return () => clearTimeout(timer);
-  }, [turnIndex, view, winner, gameMode, deck.length]); 
+  }, [turnIndex, view, winner, gameMode, moveCount]); // <--- AQUI ESTABA LA CLAVE: moveCount
 
   const startPvE = (count: number) => {
       if (lives <= 0) { if(confirm("Sin vidas. ¿Ver anuncio?")) watchAd('life'); return; }
@@ -132,7 +138,8 @@ export default function ProUno() {
       const validCards = bot.hand.filter((c: CardType) => isValidPlay(c));
       
       if (validCards.length > 0) {
-          let card = validCards.find(c => c.color === 'black') || validCards.find(c => SPECIALS.includes(c.value)) || validCards[0];
+          // Priorizar especiales o comodines
+          let card = validCards.find(c => SPECIALS.includes(c.value)) || validCards[0];
           let nextColor = card.color;
           if (card.color === 'black') {
               const counts = { red:0, blue:0, green:0, yellow:0 };
@@ -150,7 +157,7 @@ export default function ProUno() {
       let first = initialDeck.pop();
       while(first?.color === 'black') { initialDeck.unshift(first); first = initialDeck.pop(); }
       setDeck(initialDeck); setDiscard([first!]); setPlayers(initialPlayers);
-      setCurrentColor(first!.color); setTurnIndex(0); setDirection(1); setWinner(null); setIsDrawPending(0);
+      setCurrentColor(first!.color); setTurnIndex(0); setDirection(1); setWinner(null); setIsDrawPending(0); setMoveCount(0);
       setMyPlayerIndex(0); setSelectedCardIds([]);
   };
 
@@ -181,8 +188,9 @@ export default function ProUno() {
           newDiscard.push(card);
           lastPlayedCard = card;
           actionLog += ` ${card.value}`;
+          // LOGICA REVERSA/SKIP CORREGIDA
           if (card.value === 'reverse') { if (players.length === 2) nextSkip = !nextSkip; else nextDir *= -1; }
-          if (card.value === 'skip') nextSkip = !nextSkip; 
+          if (card.value === 'skip') nextSkip = !nextSkip; // Toggle para permitir stacks que se cancelan
           if (card.value === 'draw2') addDraw += 2;
           if (card.value === 'draw4') addDraw += 4;
       });
@@ -231,6 +239,7 @@ export default function ProUno() {
       if (gameMode === 'pve') {
           setDeck(newState.deck); setDiscard(newState.discard); setPlayers(newState.players);
           setTurnIndex(newState.turnIndex); setDirection(newState.direction); setCurrentColor(newState.currentColor); setIsDrawPending(newState.isDrawPending); setLog(actionLog);
+          setMoveCount(prev => prev + 1); // IMPORTANTE: Forzar re-render de la IA
       } else {
           const serializedState = {
               ...newState,
@@ -286,11 +295,16 @@ export default function ProUno() {
       const isMe = winnerId === players[myPlayerIndex]?.id;
       playSound(isMe ? 'win' : 'lose');
       setWinner({ id: winnerId, name: winnerName });
-      if (isMe) {
+if (isMe) {
           let points = 0;
           players.forEach(p => { if(p.id !== winnerId) p.hand.forEach((c:any) => points += c.score); });
-          setScore(s => s + points); saveScore(score + points);
-      } else if (gameMode === 'pve') { setLives(l => l - 1); }
+          setScore(s => s + points); 
+          saveScore(score + points);
+          // PAGO DE MONEDAS
+          addCoins(50, 'Victoria UNO Pro');
+      } else if (gameMode === 'pve') { 
+          setLives(l => l - 1); 
+      }
   };
 
   // --- ONLINE ---
@@ -331,7 +345,7 @@ export default function ProUno() {
   const saveScore = async (s: number) => { if(user) await addDoc(collection(db, "scores_uno"), { uid:user.uid, displayName:user.name, score:s, date:serverTimestamp() }); fetchLeaderboard(); };
   const fetchLeaderboard = async () => { const q = query(collection(db, "scores_uno"), orderBy("score", "desc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); };
 
-  // --- CARTA VISUAL ---
+  // --- CARTA VISUAL (CORREGIDA: SÍMBOLOS CON BORDE NEGRO) ---
   const Card = ({ card, hidden = false, onClick, small = false, selectable = false, isSelected = false }: any) => {
       const baseClasses = "relative rounded-xl select-none transition-all duration-300 flex items-center justify-center overflow-hidden shadow-md hover:shadow-xl";
       const sizeClasses = small ? "w-12 h-16 text-base" : "w-28 h-40 text-5xl sm:w-32 sm:h-48 sm:text-6xl";
@@ -340,6 +354,7 @@ export default function ProUno() {
         : selectable ? "cursor-pointer hover:scale-105 hover:-translate-y-3 z-10 hover:z-20" : "";
       
       let bgGradient = "bg-slate-800";
+      // Ahora usamos text-color del mismo color que la carta para el efecto de borde
       let symbolColor = "text-white"; 
       let borderColor = "border-white/20";
 
@@ -352,6 +367,7 @@ export default function ProUno() {
       }
 
       const innerContent = (val: string) => {
+          // AHORA LOS ICONOS HEREDAN EL COLOR (text-current) Y TIENEN BORDE (drop-shadow)
           const strokeStyle = { filter: "drop-shadow(2px 2px 0px black) drop-shadow(-1px -1px 0px black)" };
           
           if (val === 'skip') return <Ban strokeWidth={3} className="w-full h-full p-2" style={strokeStyle}/>;
@@ -360,6 +376,7 @@ export default function ProUno() {
           if (val === 'draw4') return <div className="relative w-full h-full flex items-center justify-center"><Layers className="w-full h-full p-2 text-green-500 absolute top-1 left-1 opacity-50"/><span className="relative z-10 font-black text-5xl sm:text-6xl text-white" style={{ WebkitTextStroke: '2px black', textShadow: '2px 2px 0 #000' }}>+4</span></div>;
           if (val === 'wild') return <Sparkles className="w-full h-full p-1 text-purple-600" style={strokeStyle}/>;
           
+          // Números normales
           return <span className="flex items-center justify-center w-full h-full font-black text-6xl sm:text-7xl" style={{ WebkitTextStroke: '2px black', textShadow: '4px 4px 0 #000' }}>{val}</span>;
       };
 
@@ -373,12 +390,15 @@ export default function ProUno() {
 
       return (
           <div onClick={onClick} className={`${baseClasses} ${sizeClasses} ${bgGradient} border-[4px] border-white ${transformClasses} relative group`}>
+              {/* Óvalo Blanco Inclinado */}
               <div className="absolute inset-1.5 bg-white rounded-[50%] rotate-[-15deg] shadow-[inset_0_2px_5px_rgba(0,0,0,0.2)] flex items-center justify-center z-10 overflow-hidden">
+                   {/* Símbolo Central: TIENE EL COLOR DE LA CARTA + BORDE NEGRO */}
                    <div className={`flex items-center justify-center w-full h-full scale-110 ${symbolColor}`}>
                       {innerContent(card.value)}
                    </div>
               </div>
               
+              {/* Esquinas (BLANCAS siempre) */}
               {!small && <div className="absolute top-1 left-1 text-lg text-white font-black drop-shadow-[1px_1px_0_#000]">
                   {card.value === 'draw2' ? '+2' : card.value === 'draw4' ? '+4' : card.value === 'wild' ? 'W' : card.value === 'skip' ? 'Ø' : card.value === 'reverse' ? '⇄' : card.value}
               </div>}

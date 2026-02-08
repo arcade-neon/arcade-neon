@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-// Importamos el contexto de audio y el botón de volumen
+// IMPORTACIONES
 import { AudioProvider } from "@/contexts/AudioContext";
+import { EconomyProvider } from "@/contexts/EconomyContext"; // <--- NUEVO
 import VolumeControl from "@/components/VolumeControl";
+import WalletBar from "@/components/WalletBar"; // <--- NUEVO
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Chami Arcade",
-  description: "La mejor plataforma de juegos retro modernos",
+  title: "Daytha Rivals",
+  description: "Desafía. Compite. Domina.",
 };
 
 export default function RootLayout({
@@ -20,12 +22,17 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        {/* Envolvemos toda la app con el proveedor de audio */}
         <AudioProvider>
-          {children}
-          
-          {/* El botón de volumen flotante estará disponible en todas las páginas */}
-          <VolumeControl />
+          {/* ENVOLVEMOS CON EL SISTEMA DE ECONOMÍA */}
+          <EconomyProvider>
+            {children}
+            
+            {/* BARRA DE MONEDAS FLOTANTE */}
+            <WalletBar />
+            
+            {/* CONTROL DE VOLUMEN FLOTANTE */}
+            <VolumeControl />
+          </EconomyProvider>
         </AudioProvider>
       </body>
     </html>

@@ -49,13 +49,15 @@ export default function Home() {
          <AdSpace type="banner" />
       </div>
 
-      {/* HEADER PRINCIPAL */}
+      {/* HEADER PRINCIPAL (MARCA ACTUALIZADA) */}
       <div className="w-full max-w-4xl flex justify-between items-center mb-8 relative z-10">
         <div>
+           {/* NOMBRE DE MARCA */}
            <h1 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter">
-             CHAMI<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">ARCADE</span>
+             DAYTHA<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">RIVALS</span>
            </h1>
-           <p className="text-[10px] md:text-xs text-slate-500 font-bold tracking-[0.3em] pl-1">JUEGOS TÓXICOS</p>
+           {/* NUEVO ESLOGAN */}
+           <p className="text-[10px] md:text-xs text-slate-500 font-bold tracking-[0.3em] pl-1 uppercase">Desafía. Compite. Domina.</p>
         </div>
         
         <SoundLink href="/profile" className="flex items-center gap-3 bg-slate-900 pl-4 pr-1 py-1 rounded-full border border-slate-800 hover:border-pink-500 transition-all group shadow-lg">
@@ -96,11 +98,11 @@ export default function Home() {
 
       {/* GRID DE JUEGOS */}
       <div id="games-section" className="w-full max-w-4xl">
-         <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-6 uppercase">Arcade Disponible</p>
+         <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-6 uppercase">Arena de Juegos</p>
          
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             
-            {/* --- UNO (ACTUALIZADO) --- */}
+            {/* UNO PRO */}
             <SoundLink href="/game/uno" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
                {/* ICONO PERSONALIZADO: MINI CARTA */}
                <div className="relative w-16 h-20 group-hover:-translate-y-2 transition-transform duration-300">
@@ -115,7 +117,7 @@ export default function Home() {
                </div>
                
                <div className="text-center relative z-10 mt-2">
-                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1 drop-shadow-md">UNO</h2>
+                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1 drop-shadow-md">UNO PRO</h2>
                  <p className="text-[9px] text-red-400 font-bold uppercase tracking-widest bg-red-950/30 px-2 py-1 rounded">JUEGO FAMOSO DE CARTAS</p>
                </div>
             </SoundLink>
