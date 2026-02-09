@@ -5,13 +5,117 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Gamepad2, User, Trophy, Search, Hash, 
-  Grid3X3, Video, Gamepad, Ghost, Swords, 
-  Skull, Type, Activity, Bomb, LayoutList, 
-  Brain, Circle, Share2, Anchor, Layers 
+  Grid3X3, Video, Ghost, Swords, 
+  Skull, Activity, Bomb, LayoutList, ShoppingCart,
+  Brain, Circle, Anchor, Layers, DollarSign, Share2
 } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import AdSpace from '@/components/AdSpace';
 import { useAudio } from '@/contexts/AudioContext';
+
+// --- CONFIGURACIÓN DE TUS 17 JUEGOS ---
+const GAMES = [
+  // 1. UNO (VISUAL ESPECIAL)
+  {
+    id: 'uno', 
+    title: 'UNO', 
+    slogan: 'EL POPULAR JUEGO DE CARTAS', 
+    href: '/game/uno', 
+    icon: Layers, color: 'red', border: 'border-red-500', shadow: 'shadow-red-500/20', text: 'text-red-400', bg: 'bg-red-950/20'
+  },
+  // 2. BATTLESHIP (CAMBIO DE NOMBRE Y SLOGAN)
+  {
+    id: 'battleship', 
+    title: 'HUNDIR LA FLOTA', // Antes Naval Elite
+    slogan: 'FUEGO A DISCRECIÓN', // Slogan potente
+    href: '/game/battleship', 
+    icon: Anchor, color: 'cyan', border: 'border-cyan-500', shadow: 'shadow-cyan-500/20', text: 'text-cyan-400', bg: 'bg-cyan-950/20'
+  },
+  // 3. PIEDRA PAPEL TIJERA
+  {
+    id: 'rps', title: 'PIEDRA PAPEL TIJERA', slogan: 'CLÁSICO RÁPIDO', href: '/game/rps', 
+    icon: Swords, color: 'pink', border: 'border-pink-500', shadow: 'shadow-pink-500/20', text: 'text-pink-400', bg: 'bg-pink-950/20'
+  },
+  // 4. TRES EN RAYA
+  {
+    id: 'tictactoe', title: '3 EN RAYA', slogan: 'DUELO MENTAL', href: '/game/tictactoe', 
+    icon: Hash, color: 'teal', border: 'border-teal-500', shadow: 'shadow-teal-500/20', text: 'text-teal-400', bg: 'bg-teal-950/20'
+  },
+  // 5. SOLITARIO
+  {
+    id: 'solitaire', title: 'SOLITARIO PRO', slogan: 'CYBER DECK', href: '/game/solitaire', 
+    icon: Layers, color: 'blue', border: 'border-blue-500', shadow: 'shadow-blue-500/20', text: 'text-blue-400', bg: 'bg-blue-950/20'
+  },
+  // 6. SNAKE (CAMBIO DE NOMBRE Y SLOGAN)
+  {
+    id: 'snake', 
+    title: 'JUEGO DE LA SERPIENTE', // Antes Neon Snake
+    slogan: 'COMO EN TU NOKIA', // Referencia Nokia
+    href: '/game/snake', 
+    icon: Activity, color: 'green', border: 'border-green-500', shadow: 'shadow-green-500/20', text: 'text-green-400', bg: 'bg-green-950/20'
+  },
+  // 7. SOPA DE LETRAS
+  {
+    id: 'wordsearch', title: 'SOPA DE LETRAS', slogan: 'BUSCA Y ENCUENTRA', href: '/game/wordsearch', 
+    icon: Search, color: 'sky', border: 'border-sky-500', shadow: 'shadow-sky-500/20', text: 'text-sky-400', bg: 'bg-sky-950/20'
+  },
+  // 8. SUDOKU
+  {
+    id: 'sudoku', title: 'SUDOKU', slogan: 'LÓGICA PURA', href: '/game/sudoku', 
+    icon: Grid3X3, color: 'indigo', border: 'border-indigo-500', shadow: 'shadow-indigo-500/20', text: 'text-indigo-400', bg: 'bg-indigo-950/20'
+  },
+  // 9. MEMORY (CAMBIO DE NOMBRE Y SLOGAN)
+  {
+    id: 'memory', 
+    title: 'JUEGO DE LAS PAREJAS', // Antes Neon Memory
+    slogan: 'MEMORIA VISUAL', // Slogan
+    href: '/game/memory', 
+    icon: Brain, color: 'fuchsia', border: 'border-fuchsia-500', shadow: 'shadow-fuchsia-500/20', text: 'text-fuchsia-400', bg: 'bg-fuchsia-950/20'
+  },
+  // 10. CONNECT 4
+  {
+    id: 'connect4', title: 'CONNECT 4', slogan: 'ESTRATEGIA VERTICAL', href: '/game/connect4', 
+    icon: Circle, color: 'orange', border: 'border-orange-500', shadow: 'shadow-orange-500/20', text: 'text-orange-400', bg: 'bg-orange-950/20'
+  },
+  // 11. DOMINO (CAMBIO DE SLOGAN)
+  {
+    id: 'domino', 
+    title: 'DOMINO', 
+    slogan: 'GOLPE EN LA MESA', // Slogan potente
+    href: '/game/domino', 
+    icon: LayoutList, color: 'yellow', border: 'border-yellow-500', shadow: 'shadow-yellow-500/20', text: 'text-yellow-400', bg: 'bg-yellow-950/20'
+  },
+  // 12. TETRIS
+  {
+    id: 'tetris', title: 'TETRIX', slogan: 'ENCAJA LAS PIEZAS', href: '/game/tetris', 
+    icon: Gamepad2, color: 'purple', border: 'border-purple-500', shadow: 'shadow-purple-500/20', text: 'text-purple-400', bg: 'bg-purple-950/20'
+  },
+  // 13. AHORCADO
+  {
+    id: 'hangman', title: 'EL AHORCADO', slogan: 'ADIVINA O MUERE', href: '/game/hangman', 
+    icon: Skull, color: 'rose', border: 'border-rose-600', shadow: 'shadow-rose-600/20', text: 'text-rose-500', bg: 'bg-rose-950/20'
+  },
+  // 14. BUSCAMINAS
+  {
+    id: 'mines', title: 'BUSCAMINAS', slogan: 'RIESGO PURO', href: '/game/minesweeper', 
+    icon: Bomb, color: 'pink', border: 'border-pink-500', shadow: 'shadow-pink-500/20', text: 'text-pink-400', bg: 'bg-pink-950/20'
+  },
+  // 15. BLACKJACK
+  {
+    id: 'blackjack', title: 'BLACKJACK', slogan: 'DESAFÍA LA BANCA', href: '/game/blackjack', 
+    icon: DollarSign, color: 'emerald', border: 'border-emerald-500', shadow: 'shadow-emerald-500/20', text: 'text-emerald-400', bg: 'bg-emerald-950/20'
+  },
+  // 16. TIENDA
+  {
+    id: 'shop', title: 'TIENDA', slogan: 'SKINS & UPGRADES', href: '/shop', 
+    icon: ShoppingCart, color: 'violet', border: 'border-violet-500', shadow: 'shadow-violet-500/20', text: 'text-violet-400', bg: 'bg-violet-950/20'
+  },
+  // 17. RANKING
+  {
+    id: 'ranking', title: 'RANKING', slogan: 'TOP MUNDIAL', href: '/leaderboard', 
+    icon: Trophy, color: 'amber', border: 'border-amber-500', shadow: 'shadow-amber-500/20', text: 'text-amber-400', bg: 'bg-amber-950/20'
+  }
+];
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -30,12 +134,15 @@ export default function Home() {
     if (section) section.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const SoundLink = ({ href, className, children }) => (
+  const SoundLink = ({ href, className, children, onClick }) => (
     <Link 
       href={href} 
       className={className}
       onMouseEnter={() => playSound('hover')} 
-      onClick={() => playSound('click')}
+      onClick={(e) => {
+        playSound('click');
+        if(onClick) onClick(e);
+      }}
     >
       {children}
     </Link>
@@ -44,227 +151,105 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-4 font-mono select-none overflow-x-hidden">
       
-      {/* BANNER PUBLICIDAD SUPERIOR */}
-      <div className="w-full max-w-4xl h-24 bg-slate-900/50 rounded-xl border border-dashed border-slate-800 mb-8 flex items-center justify-center overflow-hidden">
-         <AdSpace type="banner" />
-      </div>
-
-      {/* HEADER PRINCIPAL (MARCA ACTUALIZADA) */}
-      <div className="w-full max-w-4xl flex justify-between items-center mb-8 relative z-10">
+      {/* HEADER PRINCIPAL */}
+      <div className="w-full max-w-[1400px] flex justify-between items-center mb-8 relative z-10 mt-4">
         <div>
-           {/* NOMBRE DE MARCA */}
-           <h1 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter">
-             DAYTHA<span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">RIVALS</span>
+           <h1 className="text-3xl md:text-5xl font-black text-white italic tracking-tighter">
+             DAYTHA <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">RIVALS</span>
            </h1>
-           {/* NUEVO ESLOGAN */}
-           <p className="text-[10px] md:text-xs text-slate-500 font-bold tracking-[0.3em] pl-1 uppercase">Desafía. Compite. Domina.</p>
+           <p className="text-[10px] md:text-xs text-slate-500 font-bold tracking-[0.4em] pl-1 uppercase mt-1">ARCADE COMPETITIVO</p>
         </div>
         
-        <SoundLink href="/profile" className="flex items-center gap-3 bg-slate-900 pl-4 pr-1 py-1 rounded-full border border-slate-800 hover:border-pink-500 transition-all group shadow-lg">
+        <SoundLink href="/profile" className="flex items-center gap-3 bg-slate-900/80 backdrop-blur-md pl-4 pr-1 py-1 rounded-full border border-slate-700 hover:border-pink-500 transition-all group shadow-lg">
            <span className="text-[10px] font-bold text-slate-300 group-hover:text-white hidden sm:block">
              {user ? 'MI PERFIL' : 'LOGIN'}
            </span>
-           <div className="w-8 h-8 bg-gradient-to-tr from-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+           <div className="w-8 h-8 bg-gradient-to-tr from-pink-600 to-purple-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
               <User className="w-4 h-4 text-white" />
            </div>
         </SoundLink>
       </div>
 
       {/* SECCIÓN NIVEL */}
-      <div className="w-full max-w-4xl mb-12 relative">
-         <div className="flex justify-between items-end mb-4">
-            <h2 className="text-xl font-bold text-yellow-500 flex items-center gap-2">
-              ZONA DE RETOS
+      <div className="w-full max-w-[1400px] mb-12 relative">
+         <div className="flex justify-between items-end mb-4 px-2">
+            <h2 className="text-sm font-bold text-slate-400 flex items-center gap-2 uppercase tracking-widest">
+              <Trophy className="w-4 h-4 text-yellow-500"/> Zona de Retos
             </h2>
-            <button onClick={scrollToGames} onMouseEnter={() => playSound('hover')} className="px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-[10px] font-bold text-white hover:bg-slate-800 hover:border-blue-500 transition flex items-center gap-2 group">
+            <button onClick={scrollToGames} className="px-5 py-2 bg-slate-900 border border-slate-700 rounded-full text-[10px] font-bold text-white hover:bg-slate-800 hover:border-blue-500 transition flex items-center gap-2 group shadow-lg">
                <Share2 className="w-3 h-3 group-hover:text-blue-500 transition-colors" /> CREAR SALA
             </button>
          </div>
 
-         <div className="w-full bg-gradient-to-r from-slate-900 to-slate-900/50 border border-slate-800 rounded-3xl p-8 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-blue-500/10 transition-all duration-1000"></div>
+         <div className="w-full bg-gradient-to-r from-slate-900 to-slate-900/50 border border-slate-800 rounded-3xl p-8 relative overflow-hidden group shadow-2xl">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[80px] -mr-16 -mt-16 group-hover:bg-blue-500/20 transition-all duration-1000"></div>
             <div className="relative z-10 flex justify-between items-center">
                <div>
-                  <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-1">TU NIVEL ACTUAL</p>
-                  <h3 className="text-4xl md:text-5xl font-black text-white mb-2">NOVATO</h3>
-                  <div className="h-1.5 w-32 bg-slate-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-blue-500 w-[10%]"></div>
+                  <p className="text-[10px] text-blue-400 font-bold tracking-[0.2em] mb-2 uppercase">Tu Estado Actual</p>
+                  <h3 className="text-4xl md:text-6xl font-black text-white italic tracking-tighter mb-4 drop-shadow-lg">NOVATO</h3>
+                  <div className="h-2 w-48 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                     <div className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 w-[10%] shadow-[0_0_10px_cyan]"></div>
                   </div>
                </div>
-               <Trophy className="w-16 h-16 md:w-24 md:h-24 text-slate-800 group-hover:text-blue-500/20 transition-all duration-500" />
+               <Gamepad2 className="w-24 h-24 md:w-32 md:h-32 text-slate-800 group-hover:text-blue-500/10 transition-all duration-500 transform group-hover:scale-110 group-hover:rotate-12" />
             </div>
          </div>
       </div>
 
       {/* GRID DE JUEGOS */}
-      <div id="games-section" className="w-full max-w-4xl">
-         <p className="text-[10px] text-slate-500 font-bold tracking-widest mb-6 uppercase">Arena de Juegos</p>
+      <div id="games-section" className="w-full max-w-[1400px] pb-20">
+         <div className="flex items-center gap-4 mb-6 px-2">
+             <div className="h-px bg-slate-800 flex-1"></div>
+             <p className="text-[10px] text-slate-500 font-bold tracking-[0.3em] uppercase">Selecciona tu Juego</p>
+             <div className="h-px bg-slate-800 flex-1"></div>
+         </div>
          
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
-            {/* UNO PRO */}
-            <SoundLink href="/game/uno" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               {/* ICONO PERSONALIZADO: MINI CARTA */}
-               <div className="relative w-16 h-20 group-hover:-translate-y-2 transition-transform duration-300">
-                   {/* Carta trasera (Amarilla) */}
-                   <div className="absolute inset-0 bg-yellow-500 rounded-lg border-2 border-white transform rotate-12 translate-x-4 shadow-md"></div>
-                   {/* Carta delantera (Roja) */}
-                   <div className="absolute inset-0 bg-red-600 rounded-lg border-2 border-white transform -rotate-6 shadow-xl flex items-center justify-center z-10">
-                       <div className="w-10 h-14 bg-white rounded-[50%] transform -rotate-12 flex items-center justify-center border border-red-200 shadow-inner">
-                            <span className="text-red-600 font-black text-2xl italic" style={{textShadow: '1px 1px 0 black'}}>1</span>
-                       </div>
-                   </div>
-               </div>
-               
-               <div className="text-center relative z-10 mt-2">
-                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1 drop-shadow-md">UNO PRO</h2>
-                 <p className="text-[9px] text-red-400 font-bold uppercase tracking-widest bg-red-950/30 px-2 py-1 rounded">JUEGO FAMOSO DE CARTAS</p>
-               </div>
-            </SoundLink>
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {GAMES.map((game) => (
+                <SoundLink 
+                    key={game.id} 
+                    href={game.href}
+                    className={`group relative rounded-2xl border-2 ${game.border} bg-[#0a0f1e] p-6 flex flex-col items-center justify-center gap-4 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-2xl ${game.shadow} overflow-hidden min-h-[180px]`}
+                >
+                    {/* Fondo Glow */}
+                    <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-b ${game.bg} to-transparent pointer-events-none`}></div>
+                    
+                    {/* ICONO (Personalizado para UNO, Standard para el resto) */}
+                    {game.id === 'uno' ? (
+                        <div className="relative z-10 w-16 h-20 group-hover:-translate-y-2 transition-transform duration-300 mb-2">
+                            <div className="absolute inset-0 bg-yellow-500 rounded-lg border-2 border-white transform rotate-12 translate-x-4 shadow-md"></div>
+                            <div className="absolute inset-0 bg-red-600 rounded-lg border-2 border-white transform -rotate-6 shadow-xl flex items-center justify-center z-10">
+                                <div className="w-10 h-14 bg-white rounded-[50%] transform -rotate-12 flex items-center justify-center border border-red-200 shadow-inner">
+                                        <span className="text-red-600 font-black text-2xl italic" style={{textShadow: '1px 1px 0 black'}}>1</span>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className={`relative z-10 w-16 h-16 rounded-full border-2 ${game.border} flex items-center justify-center bg-black/50 backdrop-blur-sm group-hover:shadow-[0_0_20px_currentColor] ${game.text} transition-all duration-300`}>
+                            <game.icon className="w-8 h-8" strokeWidth={1.5} />
+                        </div>
+                    )}
 
-            {/* NAVAL ELITE */}
-            <SoundLink href="/game/battleship" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-blue-950 rounded-2xl border border-blue-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-all relative z-10">
-                 <Anchor className="w-10 h-10 text-cyan-400" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NAVAL ELITE</h2>
-                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">TACTICAL WARFARE</p>
-               </div>
-            </SoundLink>
-
-            {/* PIEDRA PAPEL TIJERA */}
-            <SoundLink href="/game/rps" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all">
-                 <Swords className="w-10 h-10 text-pink-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter">PIEDRA PAPEL TIJERA</h2>
-            </SoundLink>
-
-            {/* TRES EN RAYA */}
-            <SoundLink href="/game/tictactoe" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-cyan-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-cyan-500/50 group-hover:shadow-[0_0_20px_rgba(34,211,238,0.4)] transition-all">
-                 <Hash className="w-10 h-10 text-cyan-400" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter">NEON 3 EN RAYA</h2>
-            </SoundLink>
-
-            {/* NEON SOLITAIRE */}
-            <SoundLink href="/game/solitaire" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-900/80 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
-                 <Layers className="w-10 h-10 text-pink-500" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">SOLITARIO PRO</h2>
-                 <p className="text-[10px] text-pink-400 font-bold uppercase tracking-widest">CYBER DECK</p>
-               </div>
-            </SoundLink>
-
-            {/* NEON SNAKE */}
-            <SoundLink href="/game/snake" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-green-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-green-500/50 group-hover:shadow-[0_0_20px_rgba(74,222,128,0.4)] transition-all">
-                 <Activity className="w-10 h-10 text-green-400" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter">NEON SNAKE</h2>
-            </SoundLink>
-
-            {/* SOPA DE LETRAS */}
-            <SoundLink href="/game/wordsearch" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-blue-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-blue-500/50 group-hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all">
-                 <Search className="w-10 h-10 text-blue-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter">SOPA DE LETRAS</h2>
-            </SoundLink>
-
-            {/* SUDOKU */}
-            <SoundLink href="/game/sudoku" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-indigo-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-indigo-500/50 group-hover:shadow-[0_0_20px_rgba(99,102,241,0.4)] transition-all">
-                 <Grid3X3 className="w-10 h-10 text-indigo-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter">SUDOKU</h2>
-            </SoundLink>
-
-            {/* MEMORY */}
-            <SoundLink href="/game/memory" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-pink-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-pink-500/50 group-hover:shadow-[0_0_20px_rgba(236,72,153,0.4)] transition-all relative z-10">
-                 <Brain className="w-10 h-10 text-pink-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">NEON MEMORY</h2>
-            </SoundLink>
-
-            {/* CONNECT 4 */}
-            <SoundLink href="/game/connect4" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-yellow-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-yellow-500/50 group-hover:shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all relative z-10">
-                 <Circle className="w-10 h-10 text-yellow-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">CONNECT 4</h2>
-            </SoundLink>
-
-            {/* DOMINO */}
-            <SoundLink href="/game/domino" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-orange-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-orange-500/50 group-hover:shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all relative z-10">
-                 <LayoutList className="w-10 h-10 text-orange-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter mb-1 text-center">DOMINO<br/><span className="text-sm font-normal text-slate-400">AARON MOURINHO</span></h2>
-            </SoundLink>
-
-            {/* TETRIX */}
-            <SoundLink href="/game/tetris" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-purple-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-purple-500/50 group-hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all">
-                 <Gamepad2 className="w-10 h-10 text-purple-500" />
-               </div>
-               <h2 className="text-xl font-black text-white italic tracking-tighter">TETRIX</h2>
-            </SoundLink>
-
-            {/* EL AHORCADO */}
-            <SoundLink href="/game/hangman" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-rose-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-rose-500/50 group-hover:shadow-[0_0_20px_rgba(244,63,94,0.4)] transition-all relative z-10">
-                 <Skull className="w-10 h-10 text-rose-500" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">EL AHORCADO</h2>
-                 <p className="text-[10px] text-rose-400 font-bold uppercase tracking-widest">ADIVINA O MUERE</p>
-               </div>
-            </SoundLink>
-
-            {/* CHAMI TOXICA */}
-            <SoundLink href="/game/minesweeper" className="group relative bg-slate-900 border border-slate-800 rounded-2xl p-8 hover:bg-slate-800 hover:border-red-500/50 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 group-hover:border-red-500/50 group-hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all relative z-10">
-                 <Bomb className="w-10 h-10 text-red-500" />
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-xl font-black text-white italic tracking-tighter mb-1">CHAMI LA TÓXICA</h2>
-                 <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">CUIDADO QUE EXPLOTA</p>
-               </div>
-            </SoundLink>
-
-{/* BLACKJACK (NUEVO) */}
-            <SoundLink href="/game/blackjack" className="group relative bg-gradient-to-br from-slate-900 to-black border border-green-500/50 rounded-2xl p-8 hover:border-green-400 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px] shadow-[0_0_20px_rgba(22,163,74,0.15)]">
-               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-               <div className="p-4 bg-green-950 rounded-full border-2 border-green-600 group-hover:shadow-[0_0_30px_rgba(22,163,74,0.6)] transition-all relative z-10">
-                 <div className="text-3xl">♠️</div>
-               </div>
-               <div className="text-center relative z-10">
-                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1">NEON 21</h2>
-                 <p className="text-[9px] text-green-400 font-bold uppercase tracking-widest bg-green-900/50 px-2 py-1 rounded border border-green-800">CASINO APUESTAS</p>
-               </div>
-            </SoundLink>
-
-{/* TIENDA */}
-            <SoundLink href="/shop" className="group relative bg-slate-900 border border-purple-500/30 rounded-2xl p-8 hover:border-purple-400 transition-all hover:scale-[1.02] flex flex-col items-center justify-center gap-4 overflow-hidden min-h-[200px]">
-               <div className="p-4 bg-purple-950/50 rounded-full border border-purple-500/50 group-hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all">
-                 <ShoppingCart className="w-10 h-10 text-purple-400" />
-               </div>
-               <div className="text-center">
-                 <h2 className="text-2xl font-black text-white italic tracking-tighter mb-1">TIENDA</h2>
-                 <p className="text-[9px] text-purple-300 font-bold uppercase tracking-widest">SKINS & UPGRADES</p>
-               </div>
-            </SoundLink>
-            
+                    {/* Texto y Slogan */}
+                    <div className="relative z-10 text-center space-y-2 w-full">
+                        <h2 className={`text-xl font-black italic tracking-tighter text-white group-hover:tracking-widest transition-all duration-300 drop-shadow-md uppercase`}>
+                            {game.title}
+                        </h2>
+                        <div className={`inline-block px-3 py-1 rounded-full border ${game.border} bg-black/40 backdrop-blur-sm`}>
+                            <p className={`text-[8px] font-bold uppercase tracking-[0.2em] ${game.text}`}>
+                                {game.slogan}
+                            </p>
+                        </div>
+                    </div>
+                </SoundLink>
+            ))}
          </div>
       </div>
 
-      <div className="mt-12 opacity-50"><AdSpace type="banner" /></div>
+      <div className="w-full max-w-md opacity-40 hover:opacity-100 transition-opacity duration-500 pb-6 z-10">
+          <AdSpace type="banner" />
+      </div>
+
     </div>
   );
 }
