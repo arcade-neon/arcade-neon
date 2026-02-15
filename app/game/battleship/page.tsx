@@ -493,7 +493,8 @@ export default function BattleshipPro() {
       
       return (
           <div key={`${r}-${c}`} 
-               onClick={() => isMyBoard ? handlePlaceClick(r,c) : handleAttackClick(r,c)}
+               // MODIFICADO: onPointerDown es mucho más rápido y directo que onClick para evitar el "doble click" en móviles por el hover
+               onPointerDown={() => isMyBoard ? handlePlaceClick(r,c) : handleAttackClick(r,c)}
                onMouseEnter={() => { setHoverR(r); setHoverC(c); }}
                className={`relative w-7 h-7 sm:w-10 sm:h-10 border border-slate-700/30 flex items-center justify-center cursor-pointer transition-all duration-150 group overflow-hidden ${bg} ${shipStyle}`}>
               
@@ -587,6 +588,13 @@ export default function BattleshipPro() {
       );
   };
 
+  const handleBack = () => {
+    setPhase('placement'); 
+    setView('menu'); 
+    setWinner(null); 
+    setMyBoard(createEmptyBoard());
+  };
+
   return (
     <div className={`min-h-screen bg-[#020617] flex flex-col items-center p-2 font-sans text-slate-200 select-none overflow-hidden relative ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
       
@@ -619,7 +627,7 @@ export default function BattleshipPro() {
 
       {/* HEADER */}
       <div className="w-full max-w-7xl flex justify-between items-center py-4 px-2 sm:px-4 z-10 relative mt-2">
-        <button onClick={() => { if(view==='menu') window.location.href='/'; else { setPhase('placement'); setView('menu'); setWinner(null); setMyBoard(createEmptyBoard()); } }} className="p-2 sm:p-3 bg-slate-900/50 rounded-full border border-slate-700 hover:border-cyan-500 transition-all shadow-lg"><ArrowLeft className="w-5 h-5 text-slate-400"/></button>
+        <button onClick={() => { if(view==='menu') window.location.href='/'; else { handleBack(); } }} className="p-2 sm:p-3 bg-slate-900/50 rounded-full border border-slate-700 hover:border-cyan-500 transition-all shadow-lg"><ArrowLeft className="w-5 h-5 text-slate-400"/></button>
         
         <div className="text-center">
             <h1 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 tracking-[0.1em] sm:tracking-[0.2em] uppercase drop-shadow-[0_0_15px_rgba(6,182,212,0.3)]">HUNDIR LA FLOTA</h1>

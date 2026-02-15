@@ -80,7 +80,6 @@ export default function SnakePro() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loadingRank, setLoadingRank] = useState(true);
 
-  // REFS
   const snakeRef = useRef([{x: 10, y: 10}]);
   const foodRef = useRef({x: 15, y: 5}); 
   const dirRef = useRef({x: 0, y: -1}); 
@@ -88,7 +87,6 @@ export default function SnakePro() {
   const scoreRef = useRef(0);
   const gameLoopRef = useRef(null);
 
-  // FIX: Definimos fetchLeaderboard ANTES del useEffect para evitar errores
   const fetchLeaderboard = async () => {
     setLoadingRank(true); 
     try {
@@ -97,7 +95,6 @@ export default function SnakePro() {
         const data = s.docs.map(d => d.data());
         setLeaderboard(data);
     } catch (e) {
-        console.error("ERROR CRÍTICO RANKING:", e);
         setLeaderboard([]); 
     } finally {
         setLoadingRank(false);
@@ -108,11 +105,10 @@ export default function SnakePro() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u ? { uid: u.uid, name: u.displayName || 'Hacker' } : null);
     });
-    fetchLeaderboard(); // Cargar ranking al inicio
+    fetchLeaderboard();
     return () => unsubscribe();
   }, []);
 
-  // --- GAME LOOP ---
   useEffect(() => {
     if (gameState === 'playing') {
       gameLoopRef.current = setInterval(moveSnake, speed);
@@ -126,28 +122,21 @@ export default function SnakePro() {
     dirRef.current = nextDirRef.current;
     const head = { x: snakeRef.current[0].x + dirRef.current.x, y: snakeRef.current[0].y + dirRef.current.y };
 
-    // Colisión con paredes
     if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) { handleGameOver(); return; }
-    // Colisión con uno mismo
     if (snakeRef.current.some(s => s.x === head.x && s.y === head.y)) { handleGameOver(); return; }
 
     const newSnake = [head, ...snakeRef.current];
     
-    // Comer Manzana
     if (head.x === foodRef.current.x && head.y === foodRef.current.y) {
         playSound('powerup');
         const newScore = scoreRef.current + 10;
         scoreRef.current = newScore;
         setScore(newScore);
-        
         const newFood = getRandomPos(newSnake);
         foodRef.current = newFood;
         setFood(newFood);
-        
-        // Aumentar velocidad progresivamente
         const newSpeed = Math.max(MIN_SPEED, INITIAL_SPEED - (Math.floor(newScore / 50) * 10));
         setSpeed(newSpeed);
-        
         if (view.includes('pvp')) updateOnlineScore(newScore, 'alive');
     } else {
         newSnake.pop(); 
@@ -157,7 +146,6 @@ export default function SnakePro() {
   };
 
   const changeDirection = (x, y) => {
-      // Evitar giro de 180 grados (suicidio)
       if (dirRef.current.x === -x && dirRef.current.y === -y) return;
       nextDirRef.current = {x, y};
   };
@@ -196,36 +184,31 @@ export default function SnakePro() {
                   uid: user.uid, displayName: user.name, score: scoreRef.current, date: serverTimestamp() 
               });
               addCoins(Math.floor(scoreRef.current / 10), "Snake Run");
-              fetchLeaderboard(); // Recargar ranking
-          } catch(e) { console.error("Error guardando:", e); }
+              fetchLeaderboard();
+          } catch(e) {}
       }
   };
 
   const watchReviveAd = () => { setShowAd(true); };
   const onAdSuccess = () => {
       setShowAd(false); setHasRevived(true);
-      // Revivir cortando la cola a la mitad y centrando la serpiente
       const halfSnake = snakeRef.current.slice(0, Math.max(3, Math.floor(snakeRef.current.length / 2)));
       const centerSafe = []; for(let i=0; i<halfSnake.length; i++) centerSafe.push({x: 10, y: 10 + i});
       snakeRef.current = centerSafe; setSnake(centerSafe); dirRef.current = {x: 0, y: -1}; nextDirRef.current = {x: 0, y: -1};
       setGameState('playing'); playSound('powerup');
   };
 
-  // --- ONLINE ---
   const handleCreateRoom = async () => {
       if (!user) return alert("Inicia sesión para jugar online");
       if (betType === 'money' && coins < betAmount) return alert("Fondos insuficientes");
       if (betType === 'money') await spendCoins(betAmount, "Apuesta Snake");
-      
       const code = Math.floor(1000 + Math.random() * 9000).toString();
       const betInfo = { type: betType, value: betType==='money' ? betAmount : betText };
       setCurrentBetInfo(betInfo);
-      
       await setDoc(doc(db, "matches_snake", code), { 
           host: user.uid, hostName: user.name, hostScore: 0, hostStatus: 'alive', 
           guestScore: 0, guestStatus: 'alive', betInfo, createdAt: serverTimestamp() 
       });
-      
       setRoomCode(code); setIsHost(true); setView('pvp_host'); startGame();
   };
 
@@ -233,19 +216,16 @@ export default function SnakePro() {
       if (!user) return alert("Inicia sesión para jugar online");
       const ref = doc(db, "matches_snake", c); const snap = await getDoc(ref);
       if (!snap.exists()) return alert("Sala no existe");
-      
       const data = snap.data();
       if (data.betInfo?.type === 'money') { 
-          if (coins < data.betInfo.value) return alert("Fondos insuficientes para esta mesa"); 
+          if (coins < data.betInfo.value) return alert("Fondos insuficientes"); 
           await spendCoins(data.betInfo.value, "Apuesta Snake"); 
       }
-      
       setCurrentBetInfo(data.betInfo); 
       await updateDoc(ref, { guest: user.uid, guestName: user.name });
       setRoomCode(c); setOpName(data.hostName); setIsHost(false); setView('pvp_guest'); startGame();
   };
 
-  // FIX: Safe Unsubscribe para el modo Online
   useEffect(() => {
       if (!roomCode) return;
       const unsub = onSnapshot(doc(db, "matches_snake", roomCode), (docSnap) => {
@@ -255,41 +235,27 @@ export default function SnakePro() {
               else { setOpName(data.hostName || 'Host'); setOpScore(data.hostScore || 0); setOpStatus(data.hostStatus || 'alive'); }
           }
       });
-      
-      return () => {
-          setTimeout(() => {
-              if (unsub && typeof unsub === 'function') {
-                  unsub();
-              }
-          }, 0);
-      };
+      return () => { setTimeout(() => { if (unsub && typeof unsub === 'function') unsub(); }, 0); };
   }, [roomCode, isHost]);
 
   const updateOnlineScore = (s, status) => { if(roomCode) updateDoc(doc(db, "matches_snake", roomCode), { [`${isHost?'host':'guest'}Score`]: s, [`${isHost?'host':'guest'}Status`]: status }); };
 
-  // --- RENDER GRID ---
   const renderGrid = () => {
       return Array.from({ length: GRID_SIZE * GRID_SIZE }).map((_, i) => {
           const x = i % GRID_SIZE; const y = Math.floor(i / GRID_SIZE);
           let className = "bg-slate-900/30"; 
-          // Cabeza
           if (snake[0].x === x && snake[0].y === y) className = "bg-white shadow-[0_0_15px_white] z-20 rounded-sm";
-          // Cuerpo
           else if (snake.some(s => s.x === x && s.y === y)) className = "bg-emerald-500 shadow-[0_0_5px_#10b981] opacity-90 rounded-sm";
-          // Comida
           else if (food.x === x && food.y === y) className = "bg-rose-500 shadow-[0_0_15px_#f43f5e] rounded-full scale-75 animate-pulse";
-          
           return <div key={i} className={`w-full h-full ${className} transition-colors duration-100`}></div>;
       });
   };
 
   return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center p-2 font-mono text-white select-none overflow-hidden touch-none">
-        
         <div className="fixed inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'linear-gradient(#10b981 1px, transparent 1px), linear-gradient(90deg, #10b981 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
         {showAd && <ReviveOverlay onComplete={onAdSuccess} onCancel={() => { setShowAd(false); saveFinalScore(); }} />}
 
-        {/* HEADER */}
         <div className="w-full max-w-4xl flex justify-between items-center mb-4 z-10 mt-2 px-2">
             <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-2 bg-slate-900/80 rounded-full border border-slate-700 hover:border-emerald-500 transition shadow-lg"><ArrowLeft className="w-5 h-5 text-slate-400"/></button>
             <div className="text-center"><h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500 tracking-tighter italic">SNAKE</h1></div>
@@ -314,28 +280,20 @@ export default function SnakePro() {
                     <Play className="w-10 h-10 text-emerald-400 z-10"/>
                     <div className="text-left z-10"><h2 className="text-xl font-black text-white italic">1 JUGADOR</h2><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Modo Clásico</p></div>
                 </button>
-
                 <div className="bg-slate-900/80 p-6 rounded-3xl border border-slate-700 relative overflow-hidden group shadow-2xl">
-                    <div className="flex items-center gap-4 mb-4 z-10 relative">
-                        <Users className="w-8 h-8 text-blue-400"/>
-                        <div className="text-left"><h2 className="text-xl font-black text-white italic">DUELO VS</h2><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Apuesta y Gana</p></div>
-                    </div>
+                    <div className="flex items-center gap-4 mb-4 z-10 relative"><Users className="w-8 h-8 text-blue-400"/><div className="text-left"><h2 className="text-xl font-black text-white italic">DUELO VS</h2><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Apuesta y Gana</p></div></div>
                     <div className="flex gap-2 z-10 relative">
                         <button onClick={() => setView('pvp_setup')} className="flex-1 py-3 bg-blue-600 rounded-xl font-bold text-xs hover:bg-blue-500 text-white shadow-lg active:scale-95 transition">CREAR</button>
                         <button onClick={() => setView('pvp_join')} className="flex-1 py-3 bg-slate-800 rounded-xl font-bold text-xs hover:bg-slate-700 border border-slate-600 text-slate-300 active:scale-95 transition">UNIRSE</button>
                     </div>
                 </div>
-
-                {/* RANKING SIEMPRE VISIBLE */}
                 <div className="bg-black/40 p-4 rounded-xl border border-white/5 mt-2 backdrop-blur-sm">
                     <h3 className="text-[10px] text-slate-500 uppercase font-bold mb-2 flex gap-1 items-center justify-center tracking-widest"><Trophy className="w-3 h-3 text-yellow-500"/> Ranking Global</h3>
                     {loadingRank ? (
                         <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 text-emerald-500 animate-spin"/></div>
                     ) : leaderboard.length > 0 ? (
                         leaderboard.map((s,i) => (<div key={i} className="flex justify-between text-[10px] text-slate-300 border-b border-white/5 py-1.5 last:border-0"><span>#{i+1} {s.displayName}</span><span className="text-emerald-400 font-black">{s.score} PTS</span></div>))
-                    ) : (
-                        <p className="text-[10px] text-slate-500 text-center py-2">No hay récords. ¡Sé el primero!</p>
-                    )}
+                    ) : ( <p className="text-[10px] text-slate-500 text-center py-2">No hay récords. ¡Sé el primero!</p> )}
                 </div>
             </div>
         ) : view === 'pvp_setup' ? (
@@ -346,11 +304,7 @@ export default function SnakePro() {
                     <button onClick={() => setBetType('text')} className={`flex-1 py-3 rounded-xl font-bold text-xs flex flex-col items-center gap-1 border-2 transition-all ${betType==='text' ? 'bg-pink-500/20 border-pink-500 text-pink-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><MessageSquare className="w-5 h-5"/> RETO</button>
                 </div>
                 <div className="mb-8">
-                    {betType === 'money' ? (
-                        <div><div className="flex justify-between text-xs text-slate-400 mb-2 font-bold uppercase"><span>Saldo: {coins}</span> <span>Cantidad</span></div><input type="number" value={betAmount} onChange={(e) => setBetAmount(Number(e.target.value))} className="w-full bg-black border-2 border-slate-700 rounded-xl p-4 text-center text-2xl font-black text-yellow-400 focus:border-yellow-500 outline-none transition-colors"/></div>
-                    ) : (
-                        <div><p className="text-xs text-slate-400 mb-2 font-bold uppercase">Escribe el castigo</p><textarea value={betText} onChange={(e) => setBetText(e.target.value)} placeholder="Ej: Paga la cena..." className="w-full bg-black border-2 border-slate-700 rounded-xl p-4 text-sm font-bold text-white focus:border-pink-500 outline-none h-24 resize-none transition-colors"/></div>
-                    )}
+                    {betType === 'money' ? ( <div><div className="flex justify-between text-xs text-slate-400 mb-2 font-bold uppercase"><span>Saldo: {coins}</span> <span>Cantidad</span></div><input type="number" value={betAmount} onChange={(e) => setBetAmount(Number(e.target.value))} className="w-full bg-black border-2 border-slate-700 rounded-xl p-4 text-center text-2xl font-black text-yellow-400 focus:border-yellow-500 outline-none transition-colors"/></div> ) : ( <div><p className="text-xs text-slate-400 mb-2 font-bold uppercase">Escribe el castigo</p><textarea value={betText} onChange={(e) => setBetText(e.target.value)} placeholder="Ej: Paga la cena..." className="w-full bg-black border-2 border-slate-700 rounded-xl p-4 text-sm font-bold text-white focus:border-pink-500 outline-none h-24 resize-none transition-colors"/></div> )}
                 </div>
                 <button onClick={handleCreateRoom} className="w-full py-4 bg-white text-black font-black rounded-xl hover:scale-105 transition shadow-lg uppercase tracking-widest active:scale-95">CREAR SALA</button>
                 <button onClick={() => setView('menu')} className="w-full mt-2 py-3 text-slate-500 font-bold text-xs hover:text-white uppercase tracking-widest">CANCELAR</button>
@@ -364,7 +318,6 @@ export default function SnakePro() {
             </div>
         ) : (
             <div className="w-full max-w-md flex flex-col items-center flex-grow z-10 relative">
-                
                 {view.includes('pvp') && currentBetInfo && (
                     <div className="mb-2 px-4 py-1 bg-black/40 rounded-full border border-white/10 text-[10px] font-bold text-white flex items-center gap-2">
                         <Hand className="w-3 h-3 text-yellow-500"/>
@@ -374,22 +327,15 @@ export default function SnakePro() {
                 )}
 
                 <div className="relative bg-slate-950 border-4 border-slate-800 rounded-xl shadow-2xl overflow-hidden" style={{ width: 'min(90vw, 350px)', height: 'min(90vw, 350px)' }}>
-                    <div className="w-full h-full grid" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}>
-                        {renderGrid()}
-                    </div>
-
+                    <div className="w-full h-full grid" style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, 1fr)` }}> {renderGrid()} </div>
                     {gameState === 'gameover' && (
                         <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30 backdrop-blur-md animate-in zoom-in">
                             <Skull className="w-16 h-16 text-red-500 mb-2 animate-bounce"/>
                             <h2 className="text-3xl font-black text-white italic mb-1">GAME OVER</h2>
                             <p className="text-emerald-400 font-bold text-xl mb-4">{score} PUNTOS</p>
-                            
                             {!hasRevived && view === 'pve' ? (
-                                <button onClick={watchReviveAd} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl font-bold text-white text-xs flex items-center justify-center gap-2 hover:scale-105 transition mb-3 animate-pulse shadow-lg">
-                                    <PlayCircle className="w-4 h-4"/> REVIVIR (VIDEO)
-                                </button>
+                                <button onClick={watchReviveAd} className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-xl font-bold text-white text-xs flex items-center justify-center gap-2 hover:scale-105 transition mb-3 animate-pulse shadow-lg"><PlayCircle className="w-4 h-4"/> REVIVIR (VIDEO)</button>
                             ) : null}
-                            
                             <div className="flex gap-2 w-full">
                                 <button onClick={() => { saveFinalScore(); startGame(); }} className="flex-1 py-3 bg-white text-black font-bold rounded-lg text-xs hover:scale-105 transition"><RefreshCw className="w-4 h-4 mx-auto"/></button>
                                 <button onClick={() => { saveFinalScore(); setView('menu'); }} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-lg text-xs border border-slate-600">SALIR</button>
@@ -398,22 +344,51 @@ export default function SnakePro() {
                     )}
                 </div>
 
-                {/* CONTROLES TÁCTILES */}
-                <div className="mt-6 grid grid-cols-3 gap-2 w-48 h-32 md:hidden touch-none select-none pb-4">
+                {/* CONTROLES TÁCTILES REFORZADOS (CORRECCIÓN Z-INDEX Y TOUCH-ACTION) */}
+                <div className="mt-8 grid grid-cols-3 gap-3 w-52 h-40 md:hidden touch-none select-none pb-4 relative z-[99]">
                     <div></div>
-                    <button onPointerDown={(e) => { e.preventDefault(); changeDirection(0, -1); }} className="w-full h-14 bg-slate-800/80 rounded-xl border-b-4 border-slate-950 active:border-b-0 active:translate-y-1 active:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors"><ChevronUp className="w-8 h-8 text-white"/></button>
+                    <button 
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); changeDirection(0, -1); }} 
+                        className="w-full h-16 bg-slate-800/90 rounded-2xl border-b-4 border-black active:translate-y-1 active:border-b-0 flex items-center justify-center shadow-2xl transition-all"
+                    >
+                        <ChevronUp className="w-10 h-10 text-white"/>
+                    </button>
                     <div></div>
-                    <button onPointerDown={(e) => { e.preventDefault(); changeDirection(-1, 0); }} className="w-full h-14 bg-slate-800/80 rounded-xl border-b-4 border-slate-950 active:border-b-0 active:translate-y-1 active:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors"><ChevronLeft className="w-8 h-8 text-white"/></button>
-                    <div className="flex items-center justify-center"><div className="w-3 h-3 bg-emerald-500/20 rounded-full"></div></div>
-                    <button onPointerDown={(e) => { e.preventDefault(); changeDirection(1, 0); }} className="w-full h-14 bg-slate-800/80 rounded-xl border-b-4 border-slate-950 active:border-b-0 active:translate-y-1 active:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors"><ChevronRight className="w-8 h-8 text-white"/></button>
+                    
+                    <button 
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); changeDirection(-1, 0); }} 
+                        className="w-full h-16 bg-slate-800/90 rounded-2xl border-b-4 border-black active:translate-y-1 active:border-b-0 flex items-center justify-center shadow-2xl transition-all"
+                    >
+                        <ChevronLeft className="w-10 h-10 text-white"/>
+                    </button>
+                    
+                    <div className="flex items-center justify-center">
+                        <div className="w-4 h-4 bg-emerald-500/30 rounded-full animate-pulse"></div>
+                    </div>
+                    
+                    <button 
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); changeDirection(1, 0); }} 
+                        className="w-full h-16 bg-slate-800/90 rounded-2xl border-b-4 border-black active:translate-y-1 active:border-b-0 flex items-center justify-center shadow-2xl transition-all"
+                    >
+                        <ChevronRight className="w-10 h-10 text-white"/>
+                    </button>
+                    
                     <div></div>
-                    <button onPointerDown={(e) => { e.preventDefault(); changeDirection(0, 1); }} className="w-full h-14 bg-slate-800/80 rounded-xl border-b-4 border-slate-950 active:border-b-0 active:translate-y-1 active:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors"><ChevronDown className="w-8 h-8 text-white"/></button>
+                    <button 
+                        onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); changeDirection(0, 1); }} 
+                        className="w-full h-16 bg-slate-800/90 rounded-2xl border-b-4 border-black active:translate-y-1 active:border-b-0 flex items-center justify-center shadow-2xl transition-all"
+                    >
+                        <ChevronDown className="w-10 h-10 text-white"/>
+                    </button>
                     <div></div>
                 </div>
             </div>
         )}
 
-        <div className="mt-auto opacity-75 w-full max-w-md pt-4 relative z-10 mb-2"><AdSpace type="banner" /><GameChat gameId={roomCode || "global_snake"} gameName="SNAKE" /></div>
+        <div className="mt-auto opacity-75 w-full max-w-md pt-4 relative z-0 mb-2">
+            <AdSpace type="banner" />
+            <GameChat gameId={roomCode || "global_snake"} gameName="SNAKE" />
+        </div>
     </div>
   );
 }

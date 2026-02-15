@@ -46,23 +46,19 @@ const DIFFICULTIES = {
     hard: { label: 'MAESTRO', bonus: 1000, aggression: 0.9 }
 };
 
-// --- COMPONENTE: PANEL DE AJUSTES (SIDEBAR) ---
+// --- COMPONENTE: PANEL DE AJUSTES ---
 const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
     const [tab, setTab] = useState('settings'); 
-
     if (!isOpen) return null;
-
     const Toggle = ({ label, active, onClick }) => (
         <div onClick={onClick} className="flex justify-between items-center bg-slate-900 p-4 rounded-xl border border-slate-800 cursor-pointer hover:border-emerald-500/50 transition mb-3 select-none">
             <span className="font-bold text-sm text-slate-200">{label}</span>
             {active ? <ToggleRight className="w-8 h-8 text-emerald-400"/> : <ToggleLeft className="w-8 h-8 text-slate-600"/>}
         </div>
     );
-
     return (
         <div className="fixed inset-0 z-[99999] flex justify-end">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose}></div>
-            
             <div className="relative w-full max-w-sm h-full bg-[#0f172a] border-l border-slate-700 shadow-2xl p-6 overflow-y-auto animate-in slide-in-from-right duration-300">
                 <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
                     <h2 className="text-xl font-black text-white flex items-center gap-2 uppercase tracking-wider">
@@ -70,54 +66,15 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
                     </h2>
                     <button onClick={onClose} className="p-2 bg-slate-900 rounded-full hover:bg-red-500 hover:text-white text-slate-400 transition"><X className="w-5 h-5"/></button>
                 </div>
-
                 {tab === 'settings' && (
                     <div className="space-y-6">
                         <div>
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Visualización</p>
-                            <Toggle label="Rastro de Movimiento" active={settings.showShadow} onClick={() => setSettings(s => ({...s, showShadow: !s.showShadow}))} />
-                            <Toggle label="Ayudas (Puntos Verdes)" active={settings.showHints} onClick={() => setSettings(s => ({...s, showHints: !s.showHints}))} />
-                            <Toggle label="Coordenadas (A-H, 1-8)" active={settings.showCoords} onClick={() => setSettings(s => ({...s, showCoords: !s.showCoords}))} />
+                            <Toggle label="Rastro" active={settings.showShadow} onClick={() => setSettings(s => ({...s, showShadow: !s.showShadow}))} />
+                            <Toggle label="Ayudas" active={settings.showHints} onClick={() => setSettings(s => ({...s, showHints: !s.showHints}))} />
+                            <Toggle label="Coords" active={settings.showCoords} onClick={() => setSettings(s => ({...s, showCoords: !s.showCoords}))} />
                         </div>
-
-                        <div className="pt-4 border-t border-slate-800">
-                            <button onClick={() => setTab('rules')} className="w-full py-4 bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500 rounded-xl font-bold text-white flex justify-between items-center px-4 transition group">
-                                <span className="flex items-center gap-2"><BookOpen className="w-5 h-5 text-emerald-500"/> Cómo Jugar</span>
-                                <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-emerald-500"/>
-                            </button>
-                        </div>
-                        
-                        <div className="mt-auto pt-8">
-                            <button onClick={onClose} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl shadow-lg uppercase tracking-widest transition">
-                                VOLVER AL JUEGO
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {tab === 'rules' && (
-                    <div className="space-y-6 animate-in slide-in-from-right-10">
-                        <button onClick={() => setTab('settings')} className="text-xs font-bold text-emerald-400 flex items-center gap-1 mb-4 hover:underline"><ArrowLeft className="w-3 h-3"/> VOLVER A AJUSTES</button>
-                        <div className="space-y-4">
-                            <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-                                <h3 className="font-bold text-white mb-1">Objetivo</h3>
-                                <p className="text-sm text-slate-400">Capturar al Rey enemigo (Jaque Mate).</p>
-                            </div>
-                            <h3 className="font-bold text-white text-sm uppercase tracking-widest mt-6">Piezas</h3>
-                            {[
-                                {n: 'Peón', d: 'Avanza 1 (2 al inicio). Come diagonal.', i: PIECES['P']},
-                                {n: 'Torre', d: 'Línea recta horizontal/vertical.', i: PIECES['R']},
-                                {n: 'Caballo', d: 'Salta en forma de "L".', i: PIECES['N']},
-                                {n: 'Alfil', d: 'Diagonales del mismo color.', i: PIECES['B']},
-                                {n: 'Reina', d: 'Combina Torre y Alfil.', i: PIECES['Q']},
-                                {n: 'Rey', d: '1 casilla cualquier dirección.', i: PIECES['K']},
-                            ].map((p, i) => (
-                                <div key={i} className="flex items-center gap-3 border-b border-slate-800 pb-3 last:border-0">
-                                    <img src={p.i} className="w-8 h-8"/>
-                                    <div><strong className="text-white text-sm block">{p.n}</strong><span className="text-xs text-slate-500">{p.d}</span></div>
-                                </div>
-                            ))}
-                        </div>
+                        <div className="mt-auto pt-8"><button onClick={onClose} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl shadow-lg uppercase tracking-widest transition">VOLVER AL JUEGO</button></div>
                     </div>
                 )}
             </div>
@@ -125,22 +82,17 @@ const SettingsModal = ({ isOpen, onClose, settings, setSettings }) => {
     );
 };
 
-// --- COMPONENTE AD ---
 const VideoAdOverlay = ({ onComplete, onCancel }) => {
     const [timer, setTimer] = useState(5);
     useEffect(() => {
         if(timer > 0) { const i = setInterval(() => setTimer(t => t - 1), 1000); return () => clearInterval(i); } 
         else { const t = setTimeout(onComplete, 500); return () => clearTimeout(t); }
     }, [timer, onComplete]);
-
     return (
-        <div className="fixed inset-0 z-[100000] bg-black flex flex-col items-center justify-center p-4">
-            <div className="w-full max-w-md bg-slate-900 rounded-3xl border border-slate-700 p-8 shadow-2xl text-center relative">
-                <button onClick={onCancel} className="absolute top-4 right-4 text-white/50 hover:text-white"><X/></button>
-                <Video className="w-16 h-16 text-emerald-500 mb-4 mx-auto animate-pulse"/>
-                <h3 className="text-xl font-black text-white mb-2">ANALIZANDO JUGADA</h3>
-                <div className="text-4xl font-mono font-black text-emerald-400 mb-4">{timer}s</div>
-            </div>
+        <div className="fixed inset-0 z-[100000] bg-black flex flex-col items-center justify-center p-4 text-center">
+            <Video className="w-16 h-16 text-emerald-500 mb-4 animate-pulse"/>
+            <h3 className="text-xl font-black text-white mb-2 uppercase">Analizando Jugada</h3>
+            <div className="text-4xl font-mono font-black text-emerald-400 mb-4">{timer}s</div>
         </div>
     );
 };
@@ -151,7 +103,6 @@ export default function ChessPro() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('menu'); 
 
-  // ESTADO
   const [board, setBoard] = useState(INITIAL_BOARD);
   const boardRef = useRef(INITIAL_BOARD);
   const [turn, setTurn] = useState('white'); 
@@ -161,16 +112,10 @@ export default function ChessPro() {
   const [winner, setWinner] = useState(null);
   const [difficulty, setDifficulty] = useState('medium');
   const [lastMove, setLastMove] = useState(null);
-  
-  // CONFIGURACIÓN (Settings)
   const [settings, setSettings] = useState({ showShadow: true, showHints: true, showCoords: true });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // STATS
   const [moveCount, setMoveCount] = useState(0);
   const [gameTime, setGameTime] = useState(0);
-
-  // ONLINE & ADS
   const [roomCode, setRoomCode] = useState('');
   const [isHost, setIsHost] = useState(false);
   const [opName, setOpName] = useState('Rival');
@@ -181,12 +126,18 @@ export default function ChessPro() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [showAd, setShowAd] = useState(false);
 
-  // --- INIT ---
-  const fetchLeaderboard = async () => { try { const q = query(collection(db, "scores_chess"), orderBy("moves", "asc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); } catch(e){} };
-  useEffect(() => { const u = onAuthStateChanged(auth, (u) => setUser(u ? { uid: u.uid, name: u.displayName || 'Jugador' } : null)); fetchLeaderboard(); return () => u(); }, []);
-  useEffect(() => { let i; if (gameState === 'playing' || gameState === 'cpu_thinking') i = setInterval(() => setGameTime(t => t + 1), 1000); return () => clearInterval(i); }, [gameState]);
+  useEffect(() => { 
+    const u = onAuthStateChanged(auth, (u) => setUser(u ? { uid: u.uid, name: u.displayName || 'Jugador' } : null)); 
+    fetchLeaderboard(); 
+    return () => u(); 
+  }, []);
+  
+  useEffect(() => { 
+    let i; 
+    if (gameState === 'playing' || gameState === 'cpu_thinking') i = setInterval(() => setGameTime(t => t + 1), 1000); 
+    return () => clearInterval(i); 
+  }, [gameState]);
 
-  // --- CPU ---
   useEffect(() => {
       if (view === 'pve' && turn === 'black' && gameState !== 'checkmate') {
           setGameState('cpu_thinking');
@@ -195,7 +146,6 @@ export default function ChessPro() {
       }
   }, [turn, view, gameState]);
 
-  // --- SYNC ONLINE ---
   useEffect(() => {
     if (view === 'pvp_game' && roomCode) {
         const unsub = onSnapshot(doc(db, "matches_chess", roomCode), (docSnap) => {
@@ -212,11 +162,10 @@ export default function ChessPro() {
                 }
             }
         });
-        return () => { setTimeout(() => unsub && unsub(), 0); };
+        return () => unsub();
     }
   }, [view, roomCode]);
 
-  // --- LOGIC ---
   const isWhite = (p) => p === p.toUpperCase();
   const getPieceColor = (p) => !p ? null : (isWhite(p) ? 'white' : 'black');
 
@@ -262,11 +211,9 @@ export default function ChessPro() {
       if (gameState !== 'playing') return;
       if (view === 'pvp_game' && turn !== (isHost ? 'white' : 'black')) return;
       if (view === 'pve' && turn === 'black') return; 
-
       const currentBoard = boardRef.current;
       const clickedPiece = currentBoard[r][c];
       const clickedColor = getPieceColor(clickedPiece);
-
       if (clickedColor === turn) {
           setSelected({r, c});
           setValidMoves(getValidMoves(currentBoard, r, c));
@@ -283,25 +230,19 @@ export default function ChessPro() {
       const newBoard = currentBoard.map(row => [...row]);
       const piece = newBoard[from.r][from.c];
       const target = newBoard[to.r][to.c];
-
       newBoard[to.r][to.c] = piece;
       newBoard[from.r][from.c] = null;
-
       if (piece.toLowerCase() === 'p' && (to.r === 0 || to.r === 7)) {
           newBoard[to.r][to.c] = isWhite(piece) ? 'Q' : 'q';
           playSound('powerup');
       } else target ? playSound('capture') : playSound('move');
-
       setBoard(newBoard);
       boardRef.current = newBoard;
       setLastMove({from, to});
       setSelected(null);
       setValidMoves([]);
-      
       if (!isCpu) setMoveCount(m => m + 1);
-
       if (target && target.toLowerCase() === 'k') { handleGameOver(turn); return; }
-
       const nextTurn = turn === 'white' ? 'black' : 'white';
       setTurn(nextTurn);
       if (isCpu) setGameState('playing');
@@ -311,21 +252,16 @@ export default function ChessPro() {
   const performCpuMove = () => {
       const currentBoard = boardRef.current;
       const moves = [];
-      for(let r=0; r<8; r++) {
-          for(let c=0; c<8; c++) {
-              if (currentBoard[r][c] && !isWhite(currentBoard[r][c])) {
-                  const valids = getValidMoves(currentBoard, r, c);
-                  valids.forEach(dest => moves.push({ from: {r,c}, to: dest }));
-              }
+      for(let r=0; r<8; r++) for(let c=0; c<8; c++) {
+          if (currentBoard[r][c] && !isWhite(currentBoard[r][c])) {
+              const valids = getValidMoves(currentBoard, r, c);
+              valids.forEach(dest => moves.push({ from: {r,c}, to: dest }));
           }
       }
-
       if (moves.length === 0) { setGameState('playing'); return; }
-
       let bestMove = moves[Math.floor(Math.random() * moves.length)];
       let bestScore = -Infinity;
       const aggression = DIFFICULTIES[difficulty].aggression;
-
       moves.forEach(move => {
           const target = currentBoard[move.to.r][move.to.c];
           let score = 0;
@@ -335,7 +271,6 @@ export default function ChessPro() {
           }
           if (Math.random() < aggression && score > bestScore) { bestScore = score; bestMove = move; }
       });
-
       executeMove(bestMove.from, bestMove.to, true);
   };
 
@@ -344,13 +279,13 @@ export default function ChessPro() {
       setGameState('checkmate');
       if (w === 'white' && view === 'pve') {
           playSound('win');
-          const bonus = DIFFICULTIES[difficulty].bonus;
-          addCoins(bonus, "Victoria Ajedrez");
+          addCoins(DIFFICULTIES[difficulty].bonus, "Victoria Ajedrez");
           saveScore(moveCount, gameTime);
       } else playSound('lose');
       if (view === 'pvp_game') updateDoc(doc(db, "matches_chess", roomCode), { winner: w });
   };
 
+  const fetchLeaderboard = async () => { try { const q = query(collection(db, "scores_chess"), orderBy("moves", "asc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); } catch(e){} };
   const saveScore = async(m, t) => { if(user) { await addDoc(collection(db, "scores_chess"), { uid:user.uid, displayName:user.name, moves: m, time: t, date:serverTimestamp() }); fetchLeaderboard(); }};
   const triggerAd = () => { setShowAd(true); };
   const onAdSuccess = () => {
@@ -376,52 +311,35 @@ export default function ChessPro() {
   };
 
   const formatTime = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
-  const createRoom = async () => { if (!user) return alert("Login"); if (betType === 'money' && coins < betAmount) return alert("Sin fondos"); if (betType === 'money') await spendCoins(betAmount, "Apuesta Ajedrez"); const code = Math.floor(1000+Math.random()*9000).toString(); await setDoc(doc(db, "matches_chess", code), { host: user.uid, hostName: user.name, guest: null, guestName: '...', boardStr: JSON.stringify(INITIAL_BOARD), turn: 'white', betInfo: { type: betType, value: betAmount }, createdAt: serverTimestamp() }); setRoomCode(code); setIsHost(true); setCurrentBetInfo({ type: betType, value: betAmount }); setView('pvp_game'); };
-  const joinRoom = async (code) => { if (!user) return alert("Login"); const ref = doc(db, "matches_chess", code); const snap = await getDoc(ref); if (!snap.exists()) return alert("No existe"); const data = snap.data(); if (data.betInfo.type === 'money') await spendCoins(data.betInfo.value, "Apuesta Ajedrez"); await updateDoc(ref, { guest: user.uid, guestName: user.name }); setRoomCode(code); setIsHost(false); setCurrentBetInfo(data.betInfo); setView('pvp_game'); };
+  const createRoom = async () => { if (!user) return alert("Login"); if (betType === 'money' && coins < betAmount) return alert("Sin fondos"); if (betType === 'money') await spendCoins(betAmount, "Apuesta Ajedrez"); const code = Math.floor(1000+Math.random()*9000).toString(); await setDoc(doc(db, "matches_chess", code), { host: user.uid, hostName: user.name, guest: null, guestName: '...', boardStr: JSON.stringify(INITIAL_BOARD), turn: 'white', betInfo: { type: betType, value: betAmount }, createdAt: serverTimestamp() }); setRoomCode(code); setIsHost(true); setCurrentBetInfo({ type: betType, value: betAmount }); setView('pvp_game'); initGame(); };
+  const joinRoom = async (code) => { if (!user) return alert("Login"); const ref = doc(db, "matches_chess", code); const snap = await getDoc(ref); if (!snap.exists()) return alert("No existe"); const data = snap.data(); if (data.betInfo.type === 'money') await spendCoins(data.betInfo.value, "Apuesta Ajedrez"); await updateDoc(ref, { guest: user.uid, guestName: user.name }); setRoomCode(code); setIsHost(false); setCurrentBetInfo(data.betInfo); setView('pvp_game'); initGame(); };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex flex-col items-center p-2 font-mono text-white select-none overflow-x-hidden relative z-0">
+    <div className="min-h-screen bg-[#0f172a] flex flex-col items-center p-2 font-mono text-white select-none overflow-x-hidden touch-none relative z-0">
         <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-[#050b14] to-black opacity-80 -z-10"></div>
         {showAd && <VideoAdOverlay onComplete={onAdSuccess} onCancel={() => setShowAd(false)} />}
         
-        {/* HEADER */}
-        <div className="w-full max-w-2xl flex justify-between items-center mb-4 z-10 mt-2 px-2 relative">
-            <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-2 bg-slate-900 rounded-full border border-slate-700 hover:border-emerald-500 transition"><ArrowLeft className="w-5 h-5 text-slate-400"/></button>
+        {/* HEADER COMPACTO PARA MÓVIL */}
+        <div className="w-full max-w-2xl flex justify-between items-center mb-2 z-10 mt-1 px-2 relative">
+            <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-2 bg-slate-900 rounded-full border border-slate-700 shadow-lg"><ArrowLeft className="w-5 h-5 text-slate-400"/></button>
             <div className="text-center">
-                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500 italic tracking-tighter">AJEDREZ</h1>
-                <p className="text-[10px] text-emerald-500/80 font-bold tracking-[0.5em] uppercase">STAUNTON PRO</p>
+                <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500 italic tracking-tighter">AJEDREZ</h1>
+                <p className="text-[8px] text-emerald-500/80 font-bold tracking-[0.4em] uppercase">STAUNTON PRO</p>
             </div>
-            
-            <div className="flex items-center gap-2">
-                {view !== 'menu' && (
-                    <div className="bg-slate-900/90 px-3 py-1 rounded-full border border-slate-700 flex flex-col items-end mr-2">
-                        <span className="text-[10px] font-bold text-slate-400 font-mono">{formatTime(gameTime)}</span>
-                        <span className="text-[9px] text-slate-600">MOV: {moveCount}</span>
-                    </div>
-                )}
-                {/* BOTÓN DE AJUSTES */}
-                <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-slate-900 rounded-full border border-orange-500 hover:bg-orange-500/20 transition group relative shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-                    <Settings className="w-5 h-5 text-orange-500 group-hover:text-orange-300 group-hover:rotate-90 transition-transform duration-500"/>
-                </button>
-            </div>
+            <button onClick={() => setIsSettingsOpen(true)} className="p-2 bg-slate-900 rounded-full border border-orange-500 shadow-lg"><Settings className="w-5 h-5 text-orange-500"/></button>
         </div>
 
         {view === 'menu' ? (
-            <div className="w-full max-w-md grid gap-4 animate-in zoom-in mt-4 z-10">
+            <div className="w-full max-w-md grid gap-4 animate-in zoom-in mt-6 z-10 px-4">
                 <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-700 shadow-2xl">
                     <h2 className="text-lg font-bold text-emerald-400 mb-4 flex gap-2"><Cpu className="w-5 h-5"/> VS SISTEMA</h2>
                     <div className="flex gap-2 mb-4">
                         {Object.entries(DIFFICULTIES).map(([key, val]) => (
-                            <button key={key} onClick={() => setDifficulty(key)} className={`flex-1 py-3 text-[9px] font-bold rounded-lg border transition-all ${difficulty===key ? 'bg-emerald-600 border-emerald-500 text-white scale-105 shadow-lg' : 'bg-slate-950 border-slate-800 text-slate-500'}`}>
-                                {val.label}
-                            </button>
+                            <button key={key} onClick={() => setDifficulty(key)} className={`flex-1 py-3 text-[9px] font-bold rounded-lg border transition-all ${difficulty===key ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-slate-800 text-slate-500'}`}>{val.label}</button>
                         ))}
                     </div>
-                    <button onClick={() => { initGame(); setView('pve'); }} className="w-full py-4 bg-slate-950 border border-slate-700 hover:border-emerald-500 rounded-xl font-bold text-sm tracking-widest text-white transition shadow-lg flex items-center justify-center gap-2">
-                        <Swords className="w-4 h-4"/> INICIAR PARTIDA
-                    </button>
+                    <button onClick={() => { initGame(); setView('pve'); }} className="w-full py-4 bg-emerald-600 rounded-xl font-black text-sm tracking-widest text-white shadow-lg active:scale-95 transition-all">INICIAR PARTIDA</button>
                 </div>
-
                 <div className="bg-slate-900/80 p-6 rounded-2xl border border-slate-700 shadow-2xl">
                     <h2 className="text-lg font-bold text-purple-400 mb-4 flex gap-2"><Users className="w-5 h-5"/> DUELO ONLINE</h2>
                     <div className="flex gap-2 mb-4 bg-black/40 p-2 rounded-lg">
@@ -430,118 +348,71 @@ export default function ChessPro() {
                     </div>
                     {betType === 'money' ? <input type="number" value={betAmount} onChange={(e)=>setBetAmount(Number(e.target.value))} className="w-full bg-black p-2 rounded mb-2 text-yellow-400 font-bold text-center border border-slate-700"/> : <input type="text" value={betText} onChange={(e)=>setBetText(e.target.value)} placeholder="Reto..." className="w-full bg-black p-2 rounded mb-2 text-white text-center border border-slate-700 text-xs"/>}
                     <div className="flex gap-2">
-                        <button onClick={createRoom} className="flex-1 py-3 bg-purple-600 rounded-xl font-bold text-xs text-white shadow-lg">CREAR</button>
+                        <button onClick={createRoom} className="flex-1 py-3 bg-purple-600 rounded-xl font-bold text-xs text-white">CREAR</button>
                         <input id="code" placeholder="CÓDIGO" className="w-24 bg-black border border-slate-700 rounded-xl text-center font-bold text-purple-400 outline-none"/>
                         <button onClick={() => joinRoom(document.getElementById('code').value)} className="flex-1 py-3 bg-slate-800 border border-slate-600 rounded-xl font-bold text-xs text-white">UNIRSE</button>
                     </div>
                 </div>
-                {leaderboard.length>0 && <div className="bg-black/30 p-4 rounded-xl border border-white/5"><h3 className="text-[10px] text-slate-500 uppercase font-bold mb-2 flex gap-1 justify-center"><Trophy className="w-3 h-3 text-yellow-500"/> Tabla de Maestros</h3>{leaderboard.map((s,i)=><div key={i} className="flex justify-between text-[10px] text-slate-400 border-b border-white/5 py-1"><span>#{i+1} {s.displayName}</span><span className="text-emerald-400 font-bold">{s.moves} Movs ({formatTime(s.time)})</span></div>)}</div>}
             </div>
         ) : (
             <div className="w-full max-w-xl flex flex-col items-center flex-grow z-10 relative justify-center">
                 
-                {/* HUD */}
-                <div className="w-full flex justify-between items-center mb-6 px-4 bg-slate-900/50 py-3 rounded-full border border-white/5 backdrop-blur-md">
-                    <div className="flex gap-2 text-slate-400 text-xs font-bold items-center">
-                        {turn === 'white' ? <div className="w-3 h-3 bg-white rounded-full animate-pulse shadow-[0_0_10px_white]"></div> : <div className="w-3 h-3 border border-slate-500 rounded-full"></div>}
+                {/* HUD COMPACTO */}
+                <div className="w-full flex justify-between items-center mb-3 px-4 bg-slate-900/50 py-2 rounded-full border border-white/5 backdrop-blur-md">
+                    <div className="flex gap-2 text-slate-400 text-[10px] font-bold items-center">
+                        {turn === 'white' ? <div className="w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_8px_white]"></div> : <div className="w-2.5 h-2.5 border border-slate-500 rounded-full"></div>}
                         <span className={turn==='white'?'text-white':'text-slate-600'}>TU TURNO</span>
                     </div>
-                    {view === 'pvp_game' && <div className="text-[10px] bg-black px-2 py-1 rounded text-slate-500 font-mono tracking-widest">SALA: {roomCode}</div>}
-                    <div className="flex gap-2 text-slate-400 text-xs font-bold items-center">
+                    <div className="text-[10px] font-black text-emerald-400 font-mono tracking-widest uppercase">{formatTime(gameTime)} | MOV: {moveCount}</div>
+                    <div className="flex gap-2 text-slate-400 text-[10px] font-bold items-center">
                         <span className={turn==='black'?'text-white':'text-slate-600'}>{view==='pvp_game'?'RIVAL':'CPU'}</span>
-                        {turn === 'black' ? <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]"></div> : <div className="w-3 h-3 border border-slate-500 rounded-full"></div>}
+                        {turn === 'black' ? <div className="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_red]"></div> : <div className="w-2.5 h-2.5 border border-slate-500 rounded-full"></div>}
                     </div>
                 </div>
 
-                {/* TABLERO PROFESIONAL (CONTRASTE ALTO) */}
-                <div className="relative aspect-square w-full max-w-[420px] bg-[#334155] border-8 border-slate-800 rounded-xl shadow-[0_0_60px_rgba(0,0,0,0.6)] p-1 overflow-hidden select-none">
+                {/* TABLERO OPTIMIZADO (w-[92vw]) */}
+                <div className="relative aspect-square w-[92vw] sm:w-[85vw] max-w-[420px] bg-[#334155] border-[6px] sm:border-8 border-slate-800 rounded-xl shadow-[0_0_60px_rgba(0,0,0,0.6)] p-0.5 overflow-hidden select-none touch-none">
                     <div className="grid grid-cols-8 grid-rows-8 w-full h-full relative">
-                        {settings.showCoords && (
-                            <>
-                                <div className="absolute left-0.5 top-0.5 text-[8px] text-slate-500 font-bold">8</div>
-                                <div className="absolute right-0.5 bottom-0.5 text-[8px] text-slate-300 font-bold">h</div>
-                            </>
-                        )}
-
                         {board.map((row, r) => row.map((piece, c) => {
                             const isDark = (r + c) % 2 === 1;
                             const isSelected = selected?.r === r && selected?.c === c;
                             const isLastMove = settings.showShadow && lastMove && ((lastMove.from.r===r && lastMove.from.c===c) || (lastMove.to.r===r && lastMove.to.c===c));
                             const isValid = validMoves.some(m => m.r === r && m.c === c);
-                            
-                            // COLOR DE FONDO DIRECTO (SIN CAPAS INTERMEDIAS PARA EVITAR OSCURIDAD)
                             let bgClass = isDark ? 'bg-slate-700' : 'bg-slate-400';
                             if (isSelected) bgClass = '!bg-emerald-500/80';
-                            // AQUÍ ESTÁ EL CAMBIO CLAVE: Amarillo muy claro y sólido
                             else if (isLastMove) bgClass = '!bg-yellow-200/80'; 
 
                             return (
-                                <div 
-                                    key={`${r}-${c}`} 
-                                    onClick={() => handleSquareClick(r, c)}
-                                    className={`
-                                        flex items-center justify-center relative
-                                        ${bgClass}
-                                    `}
-                                >
-                                    {/* Indicador de movimiento (CONDICIONAL) */}
-                                    {settings.showHints && isValid && (
-                                        <div className={`absolute w-4 h-4 rounded-full ${piece ? 'border-4 border-red-500 w-full h-full rounded-none opacity-50' : 'bg-black/30'}`}></div>
-                                    )}
-                                    
-                                    {/* PIEZA STAUNTON HD */}
-                                    {piece && (
-                                        <img 
-                                            src={PIECES[piece]} 
-                                            alt={piece}
-                                            className={`
-                                                w-[92%] h-[92%] object-contain drop-shadow-xl transition-transform duration-200 select-none
-                                                ${isSelected ? 'scale-110 -translate-y-2' : ''}
-                                            `}
-                                        />
-                                    )}
+                                <div key={`${r}-${c}`} onClick={() => handleSquareClick(r, c)} className={`flex items-center justify-center relative ${bgClass}`}>
+                                    {/* Coordenadas minificadas dentro de la celda */}
+                                    {settings.showCoords && c === 0 && <span className="absolute left-0.5 top-0.5 text-[6px] sm:text-[8px] text-slate-500/50 font-bold">{8 - r}</span>}
+                                    {settings.showCoords && r === 7 && <span className="absolute right-0.5 bottom-0.5 text-[6px] sm:text-[8px] text-slate-400/50 font-bold">{String.fromCharCode(97 + c)}</span>}
+                                    {settings.showHints && isValid && <div className={`absolute w-3 h-3 rounded-full ${piece ? 'border-2 border-red-500 w-full h-full rounded-none opacity-40' : 'bg-black/20'}`}></div>}
+                                    {piece && <img src={PIECES[piece]} alt={piece} className={`w-[90%] h-[90%] object-contain drop-shadow-xl transition-transform duration-200 ${isSelected ? 'scale-110 -translate-y-1' : ''}`}/>}
                                 </div>
                             )
                         }))}
                     </div>
-                    
-                    {/* ESTADO PENSANDO */}
-                    {gameState === 'cpu_thinking' && (
-                        <div className="absolute top-4 right-4 bg-black/80 px-4 py-2 rounded-xl flex items-center gap-3 border border-emerald-500/50 animate-pulse z-20 backdrop-blur-md shadow-xl">
-                            <Activity className="w-4 h-4 text-emerald-400 animate-spin"/>
-                            <span className="text-[10px] font-bold text-white tracking-widest">SISTEMA PENSANDO...</span>
-                        </div>
-                    )}
-
-                    {/* GAME OVER OVERLAY */}
                     {gameState === 'checkmate' && (
                         <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-30 backdrop-blur-sm animate-in zoom-in">
-                            <Crown className="w-24 h-24 text-yellow-500 mb-4 animate-bounce drop-shadow-[0_0_30px_#eab308]"/>
-                            <h2 className="text-4xl font-black text-white italic mb-2 tracking-tighter">JAQUE MATE</h2>
-                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Ganador: <span className={winner==='white'?'text-white':'text-red-500'}>{winner === 'white' ? 'BLANCAS' : 'NEGRAS'}</span></p>
-                            <div className="flex gap-6 text-xs font-mono text-slate-500 mb-8 bg-slate-900/50 p-4 rounded-xl border border-white/10">
-                                <span className="flex items-center gap-2"><Clock className="w-4 h-4 text-emerald-400"/> {formatTime(gameTime)}</span>
-                                <span className="flex items-center gap-2"><Move className="w-4 h-4 text-blue-400"/> {moveCount}</span>
-                            </div>
-                            <button onClick={() => setView('menu')} className="px-10 py-4 bg-white text-black font-black rounded-full hover:scale-105 transition shadow-2xl">VOLVER AL MENÚ</button>
+                            <Crown className="w-16 h-16 text-yellow-500 mb-4 animate-bounce"/>
+                            <h2 className="text-3xl font-black text-white italic tracking-tighter">JAQUE MATE</h2>
+                            <button onClick={() => setView('menu')} className="px-8 py-3 bg-white text-black font-black rounded-full text-xs active:scale-95 transition-all">VOLVER AL MENÚ</button>
                         </div>
                     )}
                 </div>
 
-                {/* CONTROLES EXTRA */}
+                {/* BOTONES DE ACCIÓN COMPACTOS */}
                 {view === 'pve' && gameState === 'playing' && (
-                    <div className="mt-8 flex gap-4">
-                        <button onClick={triggerAd} className="px-6 py-3 bg-slate-800 border border-slate-700 hover:border-emerald-500 rounded-xl flex items-center gap-2 text-[10px] font-bold text-emerald-400 uppercase tracking-widest shadow-lg active:scale-95 transition">
-                            <Eye className="w-4 h-4"/> 💡 DAME UNA PISTA (VIDEO)
-                        </button>
+                    <div className="mt-6 flex gap-4 w-full px-4 max-w-md">
+                        <button onClick={() => setView('menu')} className="flex-1 py-3 bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 border border-slate-700">Rendirse</button>
+                        <button onClick={triggerAd} className="flex-1 py-3 bg-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-2">💡 Pista (Ad)</button>
                     </div>
                 )}
             </div>
         )}
 
-        <div className="mt-auto w-full max-w-md pt-4 opacity-75"><AdSpace type="banner" /><GameChat gameId={roomCode || "global_chess"} gameName="AJEDREZ" /></div>
-        
-        {/* PANEL LATERAL DE AJUSTES (AQUÍ ESTÁ LA MAGIA DEL SIDEBAR) */}
+        <div className="mt-auto w-full max-w-md pt-2 opacity-75 scale-90 sm:scale-100"><AdSpace type="banner" /><GameChat gameId={roomCode || "global_chess"} gameName="AJEDREZ" /></div>
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} setSettings={setSettings} />
     </div>
   );
