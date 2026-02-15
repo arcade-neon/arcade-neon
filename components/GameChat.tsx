@@ -19,9 +19,18 @@ export default function GameChat({ gameId, gameName }: GameChatProps) {
     const q = query(collection(db, "chats", gameId, "messages"), orderBy("createdAt", "asc"), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map(doc => doc.data()));
-      setTimeout(() => dummyRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+setTimeout(() => dummyRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     });
-    return () => unsubscribe();
+
+// FIX DEFINITIVO: Mandamos la desconexión a la cola de tareas (setTimeout) 
+    // para que Firebase tenga tiempo de estabilizar su estado interno antes de cerrar.
+    return () => {
+      setTimeout(() => {
+        if (unsubscribe && typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      }, 0); // 0 ms es suficiente para saltar al siguiente ciclo del procesador
+    };
   }, [gameId]);
 
   const sendMessage = async (e: React.FormEvent) => {

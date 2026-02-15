@@ -112,7 +112,13 @@ export default function NeonTicTacToe() {
                 else { if (winner && !data.winner) { setWinner(null); setWinningLine([]); } }
             }
         });
-        return () => unsubscribe();
+        
+        // FIX: Safe unsubscribe
+        return () => {
+            setTimeout(() => {
+                if (unsubscribe && typeof unsubscribe === 'function') unsubscribe();
+            }, 0);
+        };
     }
   }, [view, roomCode]);
 
@@ -128,22 +134,20 @@ export default function NeonTicTacToe() {
       } catch (e) {}
   };
 
-  // --- GAMEPLAY CORREGIDO ---
+  // --- GAMEPLAY ---
   const handleCellClick = (index) => {
       if (board[index] || winner) return;
       if (view === 'pvp_host' && turn !== 'X') return;
       if (view === 'pvp_guest' && turn !== 'O') return;
-      if (view === 'pve' && turn !== 'X') return; // Bloquear si no es turno del jugador
+      if (view === 'pve' && turn !== 'X') return;
       
-      // Pasamos 'board' actual explícitamente
       makeMove(index, turn, board);
   };
 
-  // CORRECCIÓN CLAVE: Añadido parámetro 'currentBoard'
   const makeMove = async (index, player, currentBoard) => {
       const newBoard = [...currentBoard]; 
       newBoard[index] = player; 
-      setBoard(newBoard); // Actualizamos estado visual
+      setBoard(newBoard);
       
       const winInfo = checkWinner(newBoard);
       
@@ -170,7 +174,6 @@ export default function NeonTicTacToe() {
               await updateDoc(doc(db, "matches_tictactoe", roomCode), { board: newBoard, turn: nextTurn });
           } 
           else if (view === 'pve' && nextTurn === 'O') {
-              // CORRECCIÓN: Pasamos el 'newBoard' actualizado a la IA
               setTimeout(() => playAi(newBoard), 500);
           }
       }
@@ -191,7 +194,6 @@ export default function NeonTicTacToe() {
       if (move === null && boardForAi[4]===null) move=4;
       if (move === null) move=empty[Math.floor(Math.random()*empty.length)];
       
-      // CORRECCIÓN: La IA usa el tablero actualizado para hacer su movimiento
       makeMove(move, 'O', boardForAi);
   };
 

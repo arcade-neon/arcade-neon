@@ -1,498 +1,461 @@
 // @ts-nocheck
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Heart, Play, Trophy, RefreshCw, Bomb, Flag, Users, Cpu, Eye, Lightbulb, Video, Zap, ShieldAlert, Skull, Coins, TrendingUp, Hand, Wallet } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  ArrowLeft, Bomb, Flag, Timer, Trophy, RefreshCw, 
+  Skull, Users, Coins, Copy, PlayCircle, Lightbulb, X, ShieldAlert, CheckCircle2, Loader2, AlertCircle
+} from 'lucide-react';
 import { db, auth } from '@/lib/firebase';
-import { collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp, doc, setDoc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp, doc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace';
 import GameChat from '@/components/GameChat';
-
-// --- INTEGRACIÓN ECOSISTEMA ---
 import { useEconomy } from '@/contexts/EconomyContext';
 import { useAudio } from '@/contexts/AudioContext';
 
-// --- CONFIGURACIÓN DE DIFICULTAD ---
-// Multiplier: Cuánto multiplica tu apuesta si completas el tablero
-const DIFFICULTIES = {
-  easy: { rows: 8, cols: 8, mines: 10, name: 'POCO TÓXICA', multiplier: 1.5 },
-  medium: { rows: 10, cols: 10, mines: 20, name: 'CELOSA', multiplier: 2.0 },
-  hard: { rows: 12, cols: 12, mines: 30, name: 'DRAMA QUEEN', multiplier: 3.5 }
-};
-
-// --- UTILIDADES ---
-const createEmptyGrid = (rows, cols) => {
-  return Array(rows).fill(0).map(() => Array(cols).fill({
-    isMine: false, isRevealed: false, isFlagged: false, neighborCount: 0
-  }));
-};
-
-const getNeighbors = (r, c, rows, cols) => {
-  const neighbors = [];
-  for (let i = -1; i <= 1; i++) {
-    for (let j = -1; j <= 1; j++) {
-      if (i === 0 && j === 0) continue;
-      const newR = r + i;
-      const newC = c + j;
-      if (newR >= 0 && newR < rows && newC >= 0 && newC < cols) {
-        neighbors.push({ r: newR, c: newC });
-      }
-    }
+// --- CONFIGURACIÓN DE NIVELES ---
+const LEVELS = {
+  training: { 
+    id: 'training', label: 'NIVEL 1', sub: 'NOVATO', 
+    rows: 9, cols: 9, mines: 10, scoreBase: 5000, 
+    color: 'text-emerald-400', border: 'border-emerald-500', bg_grad: 'from-emerald-500/10 to-emerald-900/5' 
+  },
+  tactical: { 
+    id: 'tactical', label: 'NIVEL 2', sub: 'AVANZADO', 
+    rows: 16, cols: 16, mines: 40, scoreBase: 15000, 
+    color: 'text-blue-400', border: 'border-blue-500', bg_grad: 'from-blue-500/10 to-blue-900/5' 
+  },
+  expert: { 
+    id: 'expert', label: 'NIVEL 3', sub: 'MAESTRO', 
+    rows: 16, cols: 30, mines: 99, scoreBase: 30000, 
+    color: 'text-amber-400', border: 'border-amber-500', bg_grad: 'from-amber-500/10 to-amber-900/5' 
+  },
+  master: { 
+    id: 'master', label: 'NIVEL 4', sub: 'LEYENDA', 
+    rows: 20, cols: 30, mines: 145, scoreBase: 50000, 
+    color: 'text-purple-400', border: 'border-purple-500', bg_grad: 'from-purple-500/10 to-purple-900/5' 
+  },
+  nightmare: { 
+    id: 'nightmare', label: 'NIVEL 5', sub: 'IMPOSIBLE', 
+    rows: 24, cols: 30, mines: 170, scoreBase: 75000, 
+    color: 'text-rose-500', border: 'border-rose-500', bg_grad: 'from-rose-500/10 to-rose-900/5' 
   }
-  return neighbors;
 };
 
-export default function ChamiLaToxicaGame() {
-  // HOOKS
+const NUM_COLORS = [
+  '', 
+  'text-blue-400 font-black drop-shadow-md',    
+  'text-emerald-400 font-black drop-shadow-md', 
+  'text-red-500 font-black drop-shadow-md',      
+  'text-violet-400 font-black drop-shadow-md',  
+  'text-amber-500 font-black drop-shadow-md',   
+  'text-cyan-400 font-black drop-shadow-md',    
+  'text-white font-black drop-shadow-md',       
+  'text-gray-500 font-black drop-shadow-md'     
+];
+
+const MAX_LIVES = 5;
+
+// --- UTILS (Generador de Aleatoriedad Sincronizada) ---
+const mulberry32 = (a) => {
+    return function() {
+      var t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    }
+}
+
+// --- COMPONENTE VIDEO AD ---
+const VideoAdOverlay = ({ onComplete, onCancel }) => {
+    const [timer, setTimer] = useState(5);
+    useEffect(() => {
+        if(timer > 0) {
+            const i = setInterval(() => setTimer(t => t - 1), 1000);
+            return () => clearInterval(i);
+        } else {
+            const t = setTimeout(onComplete, 500);
+            return () => clearTimeout(t);
+        }
+    }, [timer, onComplete]);
+
+    return (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center animate-in fade-in backdrop-blur-xl">
+            <div className="absolute top-6 right-6">
+                <button onClick={onCancel} className="text-white/50 hover:text-white flex items-center gap-2 text-xs uppercase tracking-widest"><X className="w-4 h-4"/> Cancelar</button>
+            </div>
+            <div className="w-full max-w-md aspect-video bg-slate-900 rounded-3xl border border-slate-700 relative overflow-hidden flex flex-col items-center justify-center p-8 shadow-2xl">
+                <PlayCircle className="w-16 h-16 text-yellow-400 mb-6 animate-pulse"/>
+                <h3 className="text-xl font-black text-white mb-2 tracking-widest uppercase">Publicidad</h3>
+                <p className="text-slate-400 text-xs mb-8 text-center uppercase tracking-wide">Desencriptando sector...<br/><span className="text-cyan-400 font-bold font-mono text-2xl mt-2 block">{timer}s</span></p>
+                <div className="w-64 bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 transition-all duration-1000 ease-linear" style={{ width: `${((5-timer)/5)*100}%` }}></div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default function MinesweeperPro() {
   const { coins, spendCoins, addCoins } = useEconomy();
   const { playSound } = useAudio();
-
-  // ESTADOS VISTA
-  const [view, setView] = useState('menu'); // menu, betting, playing_ai, playing_online...
   const [user, setUser] = useState(null);
-
-  // ESTADOS APUESTA
-  const [bet, setBet] = useState(100);
-  const [currentCashout, setCurrentCashout] = useState(0);
-
-  // ESTADOS JUEGO
-  const [grid, setGrid] = useState([]);
-  const [config, setConfig] = useState(DIFFICULTIES.medium);
-  const [lives, setLives] = useState(3);
-  const [score, setScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
-  const [flagMode, setFlagMode] = useState(false); 
-  const [minesLeft, setMinesLeft] = useState(0);
-  const [safeCellsTotal, setSafeCellsTotal] = useState(0); // Para calcular progreso
-
-  // ESTADOS ONLINE
+  
+  // ESTADOS
+  const [view, setView] = useState('menu'); 
+  const [currentLevel, setCurrentLevel] = useState(LEVELS.training);
+  const [grid, setGrid] = useState([]); 
+  const [gameState, setGameState] = useState('idle');
+  const [gameMode, setGameMode] = useState('solo'); 
+  const [flagMode, setFlagMode] = useState(false);
+  
+  // METRICAS
+  const [timer, setTimer] = useState(0);
+  const [lives, setLives] = useState(MAX_LIVES);
+  const [flagsCount, setFlagsCount] = useState(0);
+  const [finalScore, setFinalScore] = useState(0);
+  const [isFirstClick, setIsFirstClick] = useState(true);
+  
+  // RANKING STATUS
+  const [saveStatus, setSaveStatus] = useState('idle'); // idle, saving, success, error, no-user
+  
+  // ONLINE
   const [roomCode, setRoomCode] = useState('');
-  const [opStatus, setOpStatus] = useState('Esperando...');
-
+  const [isHost, setIsHost] = useState(false);
+  const [betType, setBetType] = useState('money');
+  const [betAmount, setBetAmount] = useState(100);
+  const [betText, setBetText] = useState('');
+  const [opName, setOpName] = useState('Rival');
+  
   // EXTRAS
   const [leaderboard, setLeaderboard] = useState([]);
-  const [adState, setAdState] = useState({ active: false, type: null, timer: 5 });
+  const [showAd, setShowAd] = useState(false);
+  const [shake, setShake] = useState(false);
+  
+  // FIX: Referencia para el generador de números aleatorios (Sincronización PvP)
+  const rand = useRef(Math.random);
+
+  const fetchLeaderboard = async () => { 
+      try { 
+          const q = query(collection(db, "scores_minesweeper"), orderBy("score", "desc"), limit(5)); 
+          const s = await getDocs(q); 
+          setLeaderboard(s.docs.map(d=>d.data())); 
+      } catch(e) { console.error("Error leyendo ranking:", e); } 
+  };
 
   useEffect(() => {
-    const u = auth.currentUser;
-    if (u) setUser({ uid: u.uid, name: u.displayName || 'Jugador' });
+    const unsub = onAuthStateChanged(auth, (u) => setUser(u ? { uid: u.uid, name: u.displayName || 'Agente' } : null));
     fetchLeaderboard();
+    return () => unsub();
   }, []);
 
-  // --- LÓGICA ONLINE ---
   useEffect(() => {
-    if ((view === 'playing_online_host' || view === 'playing_online_guest') && roomCode) {
-        const unsubscribe = onSnapshot(doc(db, "matches_minesweeper", roomCode), (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (view === 'playing_online_host') setOpStatus(data.guestStatus || 'Jugando...');
-                else setOpStatus(data.hostStatus || 'Jugando...');
-            }
-        });
-        return () => unsubscribe();
-    }
-  }, [view, roomCode]);
+    let interval;
+    if (gameState === 'playing' && !showAd) interval = setInterval(() => setTimer(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [gameState, showAd]);
 
-  // --- PREPARACIÓN DEL JUEGO (Paso 1: Seleccionar Dificultad) ---
-  const selectDifficulty = (diffKey) => {
-    const conf = DIFFICULTIES[diffKey];
-    setConfig(conf);
-    setBet(100); // Reset apuesta por defecto
-    setView('betting'); // Vamos a la pantalla de apuestas
-  };
+  // --- ONLINE SYNC ---
+  useEffect(() => {
+      if (view !== 'lobby' && view !== 'playing') return;
+      if (!roomCode) return;
 
-  // --- INICIAR CON APUESTA (Paso 2: Pagar y Jugar) ---
-  const confirmStartGame = async () => {
-    if (bet > coins) return alert("No tienes suficientes monedas.");
-    if (bet < 10) return alert("Apuesta mínima 10 monedas.");
+      const unsub = onSnapshot(doc(db, "matches_minesweeper", roomCode), (docSnap) => {
+          if (docSnap.exists()) {
+              const data = docSnap.data();
+              if (isHost) setOpName(data.guestName || 'Esperando...');
+              else setOpName(data.hostName || 'Host');
 
-    const success = await spendCoins(bet, `Apuesta Chami (${config.name})`);
-    if (!success) return;
+              if (data.status === 'playing' && gameState === 'idle') {
+                  initGame('tactical', data.seed);
+              }
+              if (data.winner) {
+                  setGameState(data.winner === user?.uid ? 'won' : 'lost');
+              }
+          }
+      });
+      
+      // FIX: Estabilidad al salir del chat/juego
+      return () => {
+          setTimeout(() => {
+              if (unsub && typeof unsub === 'function') {
+                  unsub();
+              }
+          }, 0);
+      };
+  }, [view, roomCode, isHost, gameState]);
 
-    playSound('start');
-    initBoard(config);
-    setLives(3);
-    setScore(0);
-    setGameOver(false);
-    setFlagMode(false);
-    setCurrentCashout(bet); // Empiezas recuperando lo puesto (si te retiras al instante pierdes fee o nada)
-    setView('playing_ai');
-  };
-
-  // --- ONLINE (Sin apuestas por ahora, o lógica simple) ---
-  const createRoom = async (diffKey) => {
-    const conf = DIFFICULTIES[diffKey];
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    await setDoc(doc(db, "matches_minesweeper", code), {
-        host: user?.name || 'Anónimo', difficulty: diffKey, hostStatus: 'playing', guestStatus: 'waiting', createdAt: serverTimestamp()
-    });
-    setConfig(conf); initBoard(conf); setLives(1); setRoomCode(code); setView('playing_online_host');
-  };
-  const joinRoom = async (codeInput) => {
-    const ref = doc(db, "matches_minesweeper", codeInput);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return alert("Sala no encontrada");
-    const diffKey = snap.data().difficulty;
-    const conf = DIFFICULTIES[diffKey];
-    await updateDoc(ref, { guest: user?.name || 'Invitado', guestStatus: 'playing' });
-    setConfig(conf); initBoard(conf); setLives(1); setRoomCode(codeInput); setView('playing_online_guest');
-  };
-
-  // --- CORE BUSCAMINAS ---
-  const initBoard = (conf) => {
-    let newGrid = createEmptyGrid(conf.rows, conf.cols);
-    let minesPlaced = 0;
-    while (minesPlaced < conf.mines) {
-      const r = Math.floor(Math.random() * conf.rows);
-      const c = Math.floor(Math.random() * conf.cols);
-      if (!newGrid[r][c].isMine) {
-        newGrid[r][c] = { ...newGrid[r][c], isMine: true };
-        minesPlaced++;
+  // --- FUNCIÓN DE GUARDADO ROBUSTA ---
+  const saveScore = async (scoreToSave) => { 
+      if (!user) {
+          setSaveStatus('no-user');
+          return;
       }
-    }
-    for (let r = 0; r < conf.rows; r++) {
-      for (let c = 0; c < conf.cols; c++) {
-        if (newGrid[r][c].isMine) continue;
-        const neighbors = getNeighbors(r, c, conf.rows, conf.cols);
-        const count = neighbors.reduce((acc, n) => acc + (newGrid[n.r][n.c].isMine ? 1 : 0), 0);
-        newGrid[r][c] = { ...newGrid[r][c], neighborCount: count };
+      
+      setSaveStatus('saving'); 
+      try {
+          await addDoc(collection(db, "scores_minesweeper"), { 
+              uid: user.uid, 
+              displayName: user.name, 
+              score: scoreToSave, 
+              difficulty: currentLevel.id, 
+              time: timer, 
+              date: serverTimestamp() 
+          }); 
+          
+          setSaveStatus('success'); 
+          setTimeout(() => fetchLeaderboard(), 1000); 
+      } catch(e) {
+          console.error("Error guardando record:", e);
+          setSaveStatus('error'); 
       }
-    }
-    setGrid(newGrid);
-    setMinesLeft(conf.mines);
-    setSafeCellsTotal((conf.rows * conf.cols) - conf.mines);
-    setGameOver(false);
+  };
+
+  // --- GAMEPLAY ---
+  const initGame = (levelKey, seed = null) => {
+      const lvl = LEVELS[levelKey];
+      setCurrentLevel(lvl);
+      setGameMode(seed ? 'online' : 'solo');
+      
+      // FIX: Configurar el generador aleatorio (Semilla compartida o Aleatorio local)
+      if (seed) {
+          rand.current = mulberry32(seed);
+      } else {
+          rand.current = Math.random;
+      }
+      
+      const rows = lvl.rows; const cols = lvl.cols;
+      const newGrid = Array(rows).fill().map(() => Array(cols).fill({ isMine: false, isOpen: false, isFlagged: false, count: 0, exploded: false }));
+      
+      setGrid(newGrid);
+      setLives(MAX_LIVES);
+      setTimer(0);
+      setFlagsCount(lvl.mines);
+      setIsFirstClick(true);
+      setFlagMode(false);
+      setSaveStatus('idle'); 
+      setGameState('playing');
+      setView('playing');
+      playSound('start');
+  };
+
+  const placeMines = (startR, startC) => {
+      const { rows, cols, mines } = currentLevel;
+      let newGrid = JSON.parse(JSON.stringify(grid));
+      
+      let positions = [];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (Math.abs(r - startR) <= 1 && Math.abs(c - startC) <= 1) continue; else positions.push({ r, c });
+      
+      // FIX: Usar rand.current() en lugar de Math.random() para sincronización online
+      for (let i = positions.length - 1; i > 0; i--) { 
+          const j = Math.floor(rand.current() * (i + 1)); 
+          [positions[i], positions[j]] = [positions[j], positions[i]]; 
+      }
+      
+      for (let i = 0; i < mines; i++) if (positions[i]) newGrid[positions[i].r][positions[i].c].isMine = true;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (!newGrid[r][c].isMine) { let count = 0; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (r+i>=0 && r+i<rows && c+j>=0 && c+j<cols && newGrid[r+i][c+j].isMine) count++; newGrid[r][c].count = count; }
+      return newGrid;
+  };
+
+  const handleInteraction = (r, c) => {
+      if (flagMode) toggleFlag(null, r, c); else handleCellClick(r, c);
   };
 
   const handleCellClick = (r, c) => {
-    if (gameOver || grid[r][c].isRevealed) return;
-    if (!flagMode && !grid[r][c].isFlagged) playSound('click');
-    if (flagMode) { toggleFlag(r, c); return; }
-    if (grid[r][c].isFlagged) return;
-    if (grid[r][c].isMine) triggerMine(r, c);
-    else revealCell(r, c);
-  };
+      if (gameState !== 'playing' || grid[r][c].isFlagged || grid[r][c].isOpen) return;
 
-  const toggleFlag = (r, c) => {
-    if (grid[r][c].isRevealed) return;
-    const newGrid = [...grid];
-    newGrid[r][c] = { ...newGrid[r][c], isFlagged: !newGrid[r][c].isFlagged };
-    setGrid(newGrid);
-    setMinesLeft(prev => newGrid[r][c].isFlagged ? prev - 1 : prev + 1);
-  };
+      let currentGrid = [...grid];
+      if (isFirstClick) { currentGrid = placeMines(r, c); setIsFirstClick(false); }
 
-  const triggerMine = async (r, c) => {
-    playSound('explosion');
-    const newLives = lives - 1;
-    setLives(newLives);
-    const newGrid = [...grid];
-    newGrid[r][c] = { ...newGrid[r][c], isRevealed: true, exploded: true };
-    setGrid(newGrid);
-    
-    // Penalización visual al valor de retiro (opcional, aqui solo bajamos vidas)
-    if (newLives <= 0) handleGameEnd(false); // Perdiste todo
-    else if (navigator.vibrate) navigator.vibrate(200);
-  };
-
-  const revealCell = (r, c, currentGrid = null) => {
-    let workingGrid = currentGrid || [...grid];
-    if (workingGrid[r][c].isRevealed || workingGrid[r][c].isFlagged) return workingGrid;
-    
-    workingGrid[r][c] = { ...workingGrid[r][c], isRevealed: true };
-    
-    // Expansión recursiva si es 0
-    if (workingGrid[r][c].neighborCount === 0 && !workingGrid[r][c].isMine) {
-      const neighbors = getNeighbors(r, c, config.rows, config.cols);
-      neighbors.forEach(n => { workingGrid = revealCell(n.r, n.c, workingGrid); });
-    }
-
-    if (!currentGrid) { 
-        setGrid(workingGrid); 
-        // CALCULAR NUEVO VALOR DE RETIRO
-        calculateCashoutValue(workingGrid);
-        checkWin(workingGrid); 
-    }
-    return workingGrid;
-  };
-
-  // --- CÁLCULO DE GANANCIAS ---
-  const calculateCashoutValue = (currentGrid) => {
-      let revealedCount = 0;
-      for (let r = 0; r < config.rows; r++) { for (let c = 0; c < config.cols; c++) { if (currentGrid[r][c].isRevealed && !currentGrid[r][c].isMine) revealedCount++; } }
-      
-      // Fórmula: Apuesta + (Apuesta * (Progreso * Multiplicador))
-      // Si completas el 100%, ganas Bet * Multiplier
-      const progress = revealedCount / safeCellsTotal; 
-      const profit = bet * (config.multiplier - 1) * progress;
-      const totalValue = Math.floor(bet + profit);
-      
-      setCurrentCashout(totalValue);
-  };
-
-  const handleManualCashout = () => {
-      handleGameEnd(true, true); // true = win, true = isCashout
-  };
-
-  const checkWin = (currentGrid) => {
-    let revealedCount = 0;
-    for (let r = 0; r < config.rows; r++) { for (let c = 0; c < config.cols; c++) { if (currentGrid[r][c].isRevealed) revealedCount++; } }
-    if (revealedCount === safeCellsTotal) handleGameEnd(true, false); // Victoria completa
-  };
-
-  const handleGameEnd = async (win, isCashout = false) => {
-    setGameOver(true);
-    setView(win ? 'game_over_won' : 'game_over_lost');
-    
-    if (win) playSound('win'); else playSound('lose');
-
-    // Revelar todo
-    const finalGrid = grid.map(row => row.map(cell => cell.isMine ? { ...cell, isRevealed: true } : cell));
-    setGrid(finalGrid);
-    
-    // Online logic
-    if (view.includes('online')) {
-        const field = view === 'playing_online_host' ? 'hostStatus' : 'guestStatus';
-        await updateDoc(doc(db, "matches_minesweeper", roomCode), { [field]: win ? 'won' : 'lost' });
-    }
-
-    // Single Player Logic (Pagos)
-    if (view === 'playing_ai') {
-        if (win) {
-            // Si es cashout manual, pagamos lo acumulado. Si es victoria total, pagamos el Max.
-            const finalPrize = isCashout ? currentCashout : Math.floor(bet * config.multiplier);
-            addCoins(finalPrize, isCashout ? `Retirada Táctica (${config.name})` : `Victoria Total (${config.name})`);
-            setScore(finalPrize); // Usamos el score para mostrar ganancia
-            saveScore(finalPrize); // Guardar en ranking
-        } else {
-            // Perdiste todo
-            setScore(0);
-        }
-    }
-  };
-
-  // --- ADS & EXTRAS ---
-  const watchAd = (type) => { setAdState({ active: true, type, timer: 5 }); };
-  useEffect(() => {
-    let interval = null;
-    if (adState.active && adState.timer > 0) interval = setInterval(() => setAdState(p => ({ ...p, timer: p.timer - 1 })), 1000);
-    else if (adState.active && adState.timer === 0) { clearInterval(interval); finishAd(); }
-    return () => clearInterval(interval);
-  }, [adState.active, adState.timer]);
-
-  const finishAd = () => {
-    setAdState(p => ({ ...p, active: false }));
-    if (adState.type === 'life') {
-      setLives(p => p + 1);
-      if (view === 'game_over_lost') {
-        // Revivir (Hack sucio pero funcional: ocultar minas explotadas)
-        const resetGrid = grid.map(row => row.map(cell => cell.isMine ? { ...cell, isRevealed: false, exploded: false } : cell));
-        setGrid(resetGrid);
-        setGameOver(false);
-        setView('playing_ai');
+      if (currentGrid[r][c].isMine) {
+          triggerShake();
+          if (lives > 1) {
+              setLives(l => l - 1);
+              currentGrid[r][c].isOpen = true;
+              currentGrid[r][c].exploded = true;
+              setGrid(currentGrid);
+              playSound('error');
+          } else {
+              setLives(0);
+              revealAll(currentGrid);
+              handleGameOver(false);
+          }
+          return;
       }
-    } else if (adState.type === 'hint') {
-        // Logic hint...
-    }
+
+      revealRecursive(currentGrid, r, c);
+      setGrid(currentGrid);
+      playSound('click');
+      checkWin(currentGrid);
   };
 
-  const saveScore = async (finalScore) => {
-    if (user) { try { await addDoc(collection(db, "scores_minesweeper"), { uid: user.uid, displayName: user.name, score: finalScore, difficulty: config.name, date: serverTimestamp() }); fetchLeaderboard(); } catch (e) {} }
+  const revealRecursive = (board, r, c) => {
+      if (r<0 || r>=currentLevel.rows || c<0 || c>=currentLevel.cols || board[r][c].isOpen || board[r][c].isFlagged) return;
+      board[r][c].isOpen = true;
+      if (board[r][c].count === 0) for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) revealRecursive(board, r+i, c+j);
   };
-  const fetchLeaderboard = async () => { try { const q = query(collection(db, "scores_minesweeper"), orderBy("score", "desc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(doc => doc.data())); } catch (e) {} };
 
-  const renderCell = (cell, r, c) => {
-    if (!cell.isRevealed) return cell.isFlagged ? <Flag className="w-5 h-5 text-red-500" /> : null;
-    if (cell.isMine) return <Bomb className={`w-6 h-6 ${cell.exploded ? 'text-red-500 animate-pulse' : 'text-slate-800'}`} />;
-    if (cell.neighborCount > 0) {
-        const colors = ['text-blue-400', 'text-green-400', 'text-red-400', 'text-purple-400', 'text-yellow-400', 'text-cyan-400', 'text-pink-400', 'text-slate-400'];
-        return <span className={`font-black text-lg ${colors[cell.neighborCount-1]}`}>{cell.neighborCount}</span>;
-    }
-    return null;
+  const toggleFlag = (e, r, c) => {
+      if (e) e.preventDefault();
+      if (gameState !== 'playing' || grid[r][c].isOpen) return;
+      const newGrid = [...grid];
+      if (newGrid[r][c].isFlagged) { newGrid[r][c].isFlagged = false; setFlagsCount(f => f + 1); } 
+      else { newGrid[r][c].isFlagged = true; setFlagsCount(f => f - 1); playSound('flag'); }
+      setGrid(newGrid);
   };
+
+  const revealAll = (board) => {
+      board.forEach(row => row.forEach(cell => { if (cell.isMine) cell.isOpen = true; }));
+      setGrid(board);
+  };
+
+  const checkWin = (board) => {
+      let opened = 0;
+      board.forEach(row => row.forEach(cell => { if(cell.isOpen && !cell.isMine) opened++; }));
+      if (opened === (currentLevel.rows * currentLevel.cols - currentLevel.mines)) {
+          handleGameOver(true);
+      }
+  };
+
+  // --- FIN DE JUEGO & TRIGGER GUARDADO ---
+  const handleGameOver = (won) => {
+      setGameState(won ? 'won' : 'lost');
+      playSound(won ? 'win' : 'explosion');
+      
+      const score = Math.max(100, currentLevel.scoreBase - (timer * 5) - ((MAX_LIVES - lives) * 200));
+      setFinalScore(score);
+
+      // GUARDADO AUTOMÁTICO SI GANAS EN MODO SOLO
+      if (gameMode === 'solo' && won) {
+          addCoins(currentLevel.scoreBase / 100, "Misión Cumplida");
+          saveScore(score); 
+      } else if (gameMode === 'online') {
+          const updateData = { [`${isHost?'host':'guest'}Score`]: score };
+          if (won) updateData.winner = user.uid; 
+          updateDoc(doc(db, "matches_minesweeper", roomCode), updateData);
+      }
+  };
+
+  const requestHint = () => { if(gameState === 'playing') setShowAd(true); };
+  const onAdCompleted = () => { setShowAd(false); let newGrid = [...grid]; let actionDone = false; for (let r = 0; r < currentLevel.rows; r++) { for (let c = 0; c < currentLevel.cols; c++) { if (!newGrid[r][c].isMine && !newGrid[r][c].isOpen && newGrid[r][c].count === 0) { revealRecursive(newGrid, r, c); actionDone = true; break; } } if(actionDone) break; } if (!actionDone) { for (let i = 0; i < 100; i++) { const r = Math.floor(Math.random() * currentLevel.rows); const c = Math.floor(Math.random() * currentLevel.cols); if (!newGrid[r][c].isMine && !newGrid[r][c].isOpen) { revealRecursive(newGrid, r, c); actionDone = true; break; } } } if (actionDone) { setGrid(newGrid); playSound('powerup'); checkWin(newGrid); } };
+  
+  const createRoom = async () => { if (!user) return alert("Inicia sesión"); if (betType === 'money' && coins < betAmount) return alert("Fondos insuficientes"); await spendCoins(betAmount, "Apuesta Minesweeper"); const seed = Math.floor(Math.random() * 1000000); const code = Math.floor(1000 + Math.random() * 9000).toString(); await setDoc(doc(db, "matches_minesweeper", code), { host: user.uid, hostName: user.name, guest: null, guestName: '...', seed, status: 'waiting', betInfo: { type: betType, value: betType==='money'?betAmount:betText }, createdAt: serverTimestamp() }); setRoomCode(code); setIsHost(true); setView('lobby'); };
+  const joinRoom = async (c) => { if (!user) return alert("Inicia sesión"); const ref = doc(db, "matches_minesweeper", c); const snap = await getDoc(ref); if (!snap.exists()) return alert("Sala no encontrada"); const data = snap.data(); if (data.betInfo?.type === 'money' && coins < data.betInfo.value) return alert("Fondos insuficientes"); if (data.betInfo?.type === 'money') await spendCoins(data.betInfo.value, "Apuesta Minesweeper"); await updateDoc(ref, { guest: user.uid, guestName: user.name }); setRoomCode(c); setIsHost(false); setView('lobby'); };
+  const startMatch = async () => { await updateDoc(doc(db, "matches_minesweeper", roomCode), { status: 'playing' }); };
+  const triggerShake = () => { setShake(true); setTimeout(() => setShake(false), 500); };
+  const formatTime = (s) => `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center p-4 font-mono text-white select-none">
-      
-      {/* --- PUBLICIDAD --- */}
-      {adState.active && (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center p-6">
-           <Video className="w-16 h-16 text-cyan-400 mb-4 animate-bounce" />
-           <h2 className="text-2xl font-black mb-2">PUBLICIDAD</h2>
-           <div className="text-4xl font-black text-yellow-400 mb-6">{adState.timer}s</div>
-        </div>
-      )}
+    <div className={`min-h-screen bg-[#020617] flex flex-col items-center p-2 font-mono text-white select-none overflow-hidden relative ${shake ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}>
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-[#020617] to-black"></div>
+        <div className="fixed inset-0 opacity-[0.03]" style={{ backgroundImage: 'linear-gradient(#0ea5e9 1px, transparent 1px), linear-gradient(90deg, #0ea5e9 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
+        {showAd && <VideoAdOverlay onComplete={onAdCompleted} onCancel={() => setShowAd(false)} />}
 
-      {/* --- HEADER --- */}
-      <div className="w-full max-w-md flex justify-between items-center mb-6 z-10">
-        <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-2 bg-slate-900 rounded-full border border-slate-700 hover:bg-slate-800 transition">
-             <ArrowLeft className="w-5 h-5 text-slate-400"/>
-        </button>
-        
-        {view === 'playing_ai' && (
-            <div className="flex gap-4 items-center bg-slate-900/90 px-4 py-2 rounded-full border border-slate-700 shadow-lg">
-                <div className="flex items-center gap-1 mr-2 border-r border-slate-700 pr-4">
-                    {[...Array(lives)].map((_, i) => <Heart key={i} className="w-4 h-4 text-red-500 fill-red-500" />)}
+        {/* HEADER */}
+        <div className="w-full max-w-4xl flex justify-between items-center mb-6 z-10 mt-4 px-2">
+            <button onClick={() => view === 'menu' ? window.location.href='/' : setView('menu')} className="p-3 bg-slate-900/80 rounded-full border border-slate-700 hover:border-cyan-500 transition shadow-lg"><ArrowLeft className="w-5 h-5 text-slate-400"/></button>
+            <div className="text-center">
+                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500 tracking-tighter drop-shadow-lg italic">BUSCAMINAS</h1>
+                <p className="text-[10px] text-cyan-500/50 font-bold tracking-[0.5em] uppercase">PRO EDITION</p>
+            </div>
+            <div className="w-10"></div>
+        </div>
+
+        {view === 'menu' ? (
+            <div className="w-full max-w-md grid gap-6 animate-in zoom-in z-10 px-2 mt-4">
+                <div className="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
+                    <h2 className="text-xs font-bold text-slate-400 mb-6 flex gap-2 items-center tracking-widest uppercase"><ShieldAlert className="w-4 h-4 text-emerald-500"/> Selección de Nivel</h2>
+                    <div className="space-y-3">
+                        {Object.entries(LEVELS).map(([key, lvl]) => (
+                            <button key={key} onClick={() => initGame(key)} className={`w-full group relative overflow-hidden p-4 bg-slate-800/60 hover:bg-slate-800 rounded-xl border-l-4 ${lvl.border} flex justify-between items-center transition-all hover:scale-[1.02] shadow-lg`}>
+                                <div className="text-left z-10"><span className={`block font-black text-sm ${lvl.color}`}>{lvl.label}</span><span className="text-[10px] text-slate-500 font-mono">{lvl.sub}</span></div>
+                                <div className="text-right z-10"><span className="block text-[10px] text-slate-500 uppercase">Máx Pts</span><span className="font-bold text-white font-mono">{lvl.scoreBase.toLocaleString()}</span></div>
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex items-center gap-2 text-green-400 font-bold">
-                    <TrendingUp className="w-4 h-4"/> {currentCashout} ₵
+                <div className="bg-slate-900/60 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
+                    <h2 className="text-xs font-bold text-slate-400 mb-4 flex gap-2 items-center tracking-widest uppercase"><Users className="w-4 h-4 text-cyan-500"/> Duelo Online</h2>
+                    <div className="flex gap-2 mb-4 bg-black/40 p-2 rounded-lg items-center justify-between px-4"><span className="text-xs font-bold text-slate-400">APUESTA:</span><input type="number" value={betAmount} onChange={(e)=>setBetAmount(Number(e.target.value))} className="w-24 bg-transparent text-right font-black text-yellow-400 outline-none border-b border-white/20"/><Coins className="w-4 h-4 text-yellow-500"/></div>
+                    <div className="flex gap-2"><button onClick={createRoom} className="flex-1 py-3 bg-cyan-700 rounded-lg font-bold text-xs hover:bg-cyan-600 text-white shadow-lg">CREAR</button><input id="code" placeholder="CÓDIGO" className="w-24 bg-black/50 border border-slate-600 rounded-lg text-center font-mono text-cyan-400 font-bold focus:border-cyan-500 outline-none"/><button onClick={() => joinRoom(document.getElementById('code').value)} className="flex-1 py-3 bg-slate-800 rounded-lg font-bold text-xs border border-slate-600 hover:border-white text-slate-300">UNIRSE</button></div>
                 </div>
+                {leaderboard.length > 0 && <div className="bg-black/30 p-6 rounded-2xl border border-white/5"><h3 className="text-[10px] text-slate-500 uppercase font-bold mb-4 text-center tracking-widest flex justify-center gap-2"><Trophy className="w-3 h-3 text-yellow-500"/> Ranking</h3>{leaderboard.map((s, i) => (<div key={i} className="flex justify-between items-center text-xs py-2 border-b border-white/5 last:border-0 text-slate-400 font-mono"><span className="font-bold text-white flex gap-3"><span className={`${i===0?'text-yellow-400':i===1?'text-gray-300':'text-orange-400'}`}>#{i+1}</span> {s.displayName}</span><span className="text-cyan-400">{s.score.toLocaleString()}</span></div>))}</div>}
+            </div>
+        ) : view === 'lobby' ? (
+            <div className="w-full max-w-sm bg-slate-900/80 backdrop-blur-xl p-8 rounded-[2rem] border border-white/10 text-center shadow-2xl animate-in zoom-in z-10">
+                <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mx-auto mb-6"/><h2 className="text-xl font-bold text-white mb-2">ESPERANDO RIVAL</h2>
+                <div onClick={() => navigator.clipboard.writeText(roomCode)} className="bg-black/40 border border-dashed border-white/20 p-4 rounded-xl cursor-pointer hover:bg-black/60 transition group relative mb-6"><span className="text-4xl font-mono font-black text-cyan-400 tracking-[0.2em]">{roomCode}</span><div className="absolute -bottom-6 left-0 right-0 text-[10px] text-slate-500 flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition"><Copy className="w-3 h-3"/> COPIAR</div></div>
+                {isHost && <button onClick={startMatch} className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-500 transition">INICIAR MISIÓN</button>}
+            </div>
+        ) : (
+            <div className="w-full flex flex-col items-center flex-grow z-10 pb-4 overflow-hidden relative">
+                {/* HUD */}
+                <div className="w-full max-w-4xl flex justify-between items-center mb-4 px-4 bg-slate-900/90 backdrop-blur-md py-3 rounded-2xl border border-slate-700 shadow-lg relative z-20">
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-center"><span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Tiempo</span><div className="text-xl font-mono font-bold text-white flex gap-1"><Timer className="w-4 h-4 mt-1 text-cyan-500"/> {formatTime(timer)}</div></div>
+                        <div className="w-[1px] h-8 bg-slate-700"></div>
+                        <div className="flex flex-col items-center"><span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Blindaje</span><div className="flex gap-1 mt-1">{[...Array(MAX_LIVES)].map((_, i) => <div key={i} className={`w-3 h-3 rounded-sm transform rotate-45 border ${i < lives ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_5px_#10b981]' : 'bg-slate-800 border-slate-700'}`}></div>)}</div></div>
+                    </div>
+                    {gameMode==='online' && <div className="text-xs font-bold text-slate-400 uppercase border border-white/10 px-3 py-1 rounded bg-black/40">VS {opName}</div>}
+                    <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-end"><span className="text-[9px] text-slate-500 uppercase tracking-widest font-bold">Minas</span><div className="text-xl font-mono font-bold text-rose-400 flex gap-1">{flagsCount} <Bomb className="w-4 h-4 mt-1"/></div></div>
+                    </div>
+                </div>
+
+                {/* BOTONES DE ACCIÓN */}
+                <div className="w-full max-w-4xl flex justify-center gap-4 mb-4 px-2">
+                    <button onClick={requestHint} className="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-lg active:scale-95"><Lightbulb className="w-4 h-4"/> PISTA (VIDEO AD)</button>
+                    <button onClick={() => setFlagMode(!flagMode)} className={`px-6 py-3 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-lg active:scale-95 border ${flagMode ? 'bg-yellow-500 text-black border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.4)] animate-pulse' : 'bg-slate-800 text-slate-400 border-slate-600 hover:bg-slate-700'}`}><Flag className={`w-4 h-4 ${flagMode ? 'fill-black' : ''}`}/> {flagMode ? 'MODO BANDERA: ON' : 'MODO BANDERA: OFF'}</button>
+                </div>
+
+                {/* GRID */}
+                <div className="flex-grow w-full overflow-auto flex justify-center items-start px-2 scrollbar-hide pb-20">
+                    <div className="grid gap-[2px] bg-slate-900 border-4 border-slate-800 shadow-2xl p-2 rounded-xl select-none" style={{ gridTemplateColumns: `repeat(${currentLevel.cols}, minmax(0, 1fr))` }} onContextMenu={(e) => e.preventDefault()}>
+                        {grid.map((row, r) => row.map((cell, c) => (
+                            <div key={`${r}-${c}`} onClick={() => handleInteraction(r, c)} onContextMenu={(e) => toggleFlag(e, r, c)} className={`w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 rounded-md flex items-center justify-center text-lg cursor-pointer transition-all duration-100 relative shadow-sm ${cell.isOpen ? (cell.isMine ? (cell.exploded ? 'bg-red-600 text-white animate-pulse z-10 scale-110 shadow-lg border border-red-400' : 'bg-slate-800 border border-slate-700') : 'bg-[#0f172a] shadow-inner') : 'bg-gradient-to-b from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 border-t border-white/10 active:translate-y-[1px]'}`}>
+                                {cell.isOpen ? (cell.isMine ? <Bomb className="w-5 h-5 text-white fill-current"/> : (cell.count > 0 && <span className={NUM_COLORS[cell.count]}>{cell.count}</span>)) : (cell.isFlagged && <Flag className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-md"/>)}
+                            </div>
+                        )))}
+                    </div>
+                </div>
+
+                {/* GAME OVER MODAL */}
+                {(gameState === 'won' || gameState === 'lost') && (
+                    <div className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center animate-in zoom-in p-4 backdrop-blur-md">
+                        <div className={`p-6 rounded-full border-4 mb-6 ${gameState==='won' ? 'border-yellow-500 bg-yellow-500/10' : 'border-red-600 bg-red-600/10'}`}>{gameState === 'won' ? <Trophy className="w-16 h-16 text-yellow-500 animate-bounce"/> : <Skull className="w-16 h-16 text-red-600"/>}</div>
+                        <h2 className="text-5xl font-black text-white italic mb-2 tracking-tighter uppercase">{gameState === 'won' ? 'MISIÓN CUMPLIDA' : 'K.I.A.'}</h2>
+                        
+                        {gameState === 'won' ? (
+                            <div className="text-center mb-8 bg-slate-900/50 p-6 rounded-2xl border border-white/10 w-full max-w-xs relative overflow-hidden">
+                                <div className="flex justify-between text-xs text-slate-400 mb-2"><span>TIEMPO</span> <span className="text-white">{formatTime(timer)}</span></div>
+                                <div className="flex justify-between text-xs text-slate-400 mb-2"><span>BLINDAJE</span> <span className="text-emerald-400">{lives}/{MAX_LIVES}</span></div>
+                                <div className="border-t border-white/10 my-2"></div>
+                                <div className="flex justify-between text-sm font-bold text-yellow-400 items-center">
+                                    <span>PUNTUACIÓN</span> 
+                                    <span className="flex items-center gap-2">
+                                        {finalScore}
+                                        {saveStatus === 'saving' && <Loader2 className="w-4 h-4 animate-spin text-blue-400"/>}
+                                        {saveStatus === 'success' && <CheckCircle2 className="w-4 h-4 text-green-400"/>}
+                                        {saveStatus === 'error' && <AlertCircle className="w-4 h-4 text-red-400"/>}
+                                        {saveStatus === 'no-user' && <span className="text-xs text-red-400">(Guest)</span>}
+                                    </span>
+                                </div>
+                                {saveStatus === 'saving' && <div className="mt-2 text-xs text-blue-400 animate-pulse bg-blue-900/20 py-1 rounded">Guardando datos en la red...</div>}
+                                {saveStatus === 'success' && <div className="mt-2 text-xs text-green-400 bg-green-900/20 py-1 rounded">¡Récord Registrado!</div>}
+                                {saveStatus === 'no-user' && <div className="mt-2 text-xs text-orange-400 bg-orange-900/20 py-1 rounded">Inicia sesión para guardar</div>}
+                            </div>
+                        ) : (<p className="text-red-400 font-mono mb-8 uppercase tracking-widest">DETONACIÓN CONFIRMADA</p>)}
+                        
+                        <div className="flex gap-4">
+                            <button onClick={() => initGame(currentLevel.id)} disabled={saveStatus==='saving'} className="px-8 py-4 bg-white text-black font-black rounded-xl hover:scale-105 transition flex items-center gap-2 uppercase tracking-widest text-sm shadow-lg disabled:opacity-50"><RefreshCw className="w-4 h-4"/> REINTENTAR</button>
+                            <button onClick={() => setView('menu')} disabled={saveStatus==='saving'} className="px-8 py-4 bg-slate-800 text-white font-bold rounded-xl border border-slate-600 hover:bg-slate-700 transition uppercase tracking-widest text-sm disabled:opacity-50">ABORTAR</button>
+                        </div>
+                    </div>
+                )}
             </div>
         )}
-      </div>
-
-      <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 mb-4 text-center tracking-tighter italic drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]">
-        CHAMI LA TÓXICA
-      </h1>
-
-      {/* --- VISTA: MENÚ --- */}
-      {view === 'menu' && (
-        <div className="w-full max-w-md grid gap-4 animate-in zoom-in">
-           {/* SOLO PLAYER */}
-           <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 relative overflow-hidden group">
-              <Skull className="absolute top-2 right-2 w-20 h-20 text-pink-900/20 group-hover:text-pink-500/20 transition"/>
-              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Cpu className="w-5 h-5 text-pink-400"/> MODO APUESTAS</h2>
-              <p className="text-xs text-slate-400 mb-4">Elige dificultad, apuesta tus monedas y retírate antes de explotar.</p>
-              <div className="flex gap-2">
-                 {Object.keys(DIFFICULTIES).map(key => (
-                     <button key={key} onClick={() => selectDifficulty(key)} className={`flex-1 py-3 rounded-lg text-[9px] font-bold border transition uppercase ${key === 'hard' ? 'bg-red-900/30 border-red-500/50 text-red-400' : 'bg-slate-800 border-slate-700 hover:bg-slate-700'}`}>
-                        {DIFFICULTIES[key].name} (x{DIFFICULTIES[key].multiplier})
-                     </button>
-                 ))}
-              </div>
-           </div>
-           
-           {/* MULTIPLAYER */}
-           <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 relative overflow-hidden group">
-              <Users className="absolute top-2 right-2 w-20 h-20 text-blue-900/20 group-hover:text-blue-500/20 transition"/>
-              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><Users className="w-5 h-5 text-blue-400"/> DUELO ONLINE</h2>
-              <p className="text-xs text-slate-400 mb-4">Sin apuestas. Solo honor.</p>
-              <div className="flex gap-2">
-                 <button onClick={() => createRoom('medium')} className="flex-1 py-3 bg-blue-600 rounded-xl font-bold text-xs hover:bg-blue-500 shadow-lg">CREAR</button>
-                 <button onClick={() => joinRoom(document.getElementById('roomInput').value)} className="flex-1 py-3 bg-slate-800 rounded-xl font-bold text-xs hover:bg-slate-700 border border-slate-700">UNIRSE</button>
-              </div>
-              <input type="number" id="roomInput" placeholder="CÓDIGO DE SALA" className="w-full mt-2 bg-black border border-slate-700 rounded-xl px-4 py-2 text-center text-sm font-bold outline-none focus:border-blue-500"/>
-           </div>
-           
-           {leaderboard.length > 0 && (
-             <div className="bg-black/20 p-4 rounded-xl border border-white/5">
-                <h3 className="text-[10px] text-slate-500 uppercase font-bold mb-2 flex gap-1"><Trophy className="w-3 h-3"/> TOP GANADORES</h3>
-                {leaderboard.map((s,i) => (
-                    <div key={i} className="flex justify-between text-[10px] text-slate-400 border-b border-white/5 py-1"><span>#{i+1} {s.displayName}</span><span className="text-green-500 font-bold">+{s.score} ₵</span></div>
-                ))}
-             </div>
-           )}
-        </div>
-      )}
-
-      {/* --- VISTA: PANTALLA DE APUESTA (NUEVO) --- */}
-      {view === 'betting' && (
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 p-6 rounded-3xl animate-in slide-in-from-right">
-              <h2 className="text-xl font-black text-center mb-6 uppercase tracking-widest text-pink-500">REALIZA TU APUESTA</h2>
-              
-              <div className="bg-black/40 p-4 rounded-xl mb-6 text-center border border-slate-700">
-                  <p className="text-xs text-slate-500 uppercase font-bold mb-2">Saldo Disponible</p>
-                  <p className="text-3xl font-black text-white flex justify-center gap-2 items-center"><Wallet className="w-6 h-6 text-slate-400"/> {coins}</p>
-              </div>
-
-              <div className="mb-8">
-                  <div className="flex justify-between text-xs font-bold text-slate-400 mb-2">
-                      <span>Cantidad a Apostar</span>
-                      <span className="text-yellow-500">Max Win: {Math.floor(bet * config.multiplier)} ₵</span>
-                  </div>
-                  <input 
-                      type="number" 
-                      value={bet} 
-                      onChange={(e) => setBet(Number(e.target.value))}
-                      className="w-full bg-slate-800 border-2 border-slate-700 rounded-xl py-4 text-center text-2xl font-black text-white focus:border-pink-500 outline-none mb-4"
-                  />
-                  <div className="flex gap-2">
-                      <button onClick={() => setBet(100)} className="flex-1 py-2 bg-slate-800 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-700">100</button>
-                      <button onClick={() => setBet(500)} className="flex-1 py-2 bg-slate-800 rounded-lg text-xs font-bold text-slate-400 hover:bg-slate-700">500</button>
-                      <button onClick={() => setBet(Math.floor(coins))} className="flex-1 py-2 bg-slate-800 rounded-lg text-xs font-bold text-yellow-500 hover:bg-slate-700">ALL IN</button>
-                  </div>
-              </div>
-
-              <button onClick={confirmStartGame} className="w-full py-4 bg-gradient-to-r from-pink-600 to-purple-600 rounded-xl font-black text-lg uppercase tracking-widest shadow-lg hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
-                  <Play className="w-5 h-5 fill-current"/> JUGAR AHORA
-              </button>
-          </div>
-      )}
-
-      {/* --- VISTA: JUGANDO --- */}
-      {view.includes('playing') && (
-        <div className="w-full max-w-md flex flex-col items-center animate-in zoom-in">
-           {/* BOTÓN CASHOUT MANUAL (NUEVO) */}
-           {view === 'playing_ai' && !gameOver && (
-               <button 
-                  onClick={handleManualCashout}
-                  className="w-full mb-4 py-3 bg-green-600 hover:bg-green-500 rounded-xl font-black text-white uppercase tracking-widest shadow-[0_0_20px_rgba(34,197,94,0.4)] flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-               >
-                   <Hand className="w-5 h-5"/> ME PLANTO: +{currentCashout} ₵
-               </button>
-           )}
-
-           <div className="flex gap-2 w-full mb-4">
-               <button onClick={() => setFlagMode(!flagMode)} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition border ${flagMode ? 'bg-red-500 text-white border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
-                   <Flag className="w-4 h-4"/> {flagMode ? 'BANDERA' : 'REVELAR'}
-               </button>
-           </div>
-
-           <div className="bg-slate-900 p-2 rounded-xl border border-slate-700 shadow-2xl inline-block">
-               <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${config.cols}, 1fr)` }}>
-                   {grid.map((row, r) => row.map((cell, c) => (
-                       <button
-                           key={`${r}-${c}`}
-                           onClick={() => handleCellClick(r, c)}
-                           onContextMenu={(e) => { e.preventDefault(); toggleFlag(r, c); }}
-                           className={`w-8 h-8 sm:w-10 sm:h-10 rounded-md flex items-center justify-center text-sm font-bold transition-all active:scale-95
-                               ${!cell.isRevealed ? 'bg-slate-800 hover:bg-slate-700 border border-slate-700' : 'bg-slate-950 border border-slate-900'}
-                               ${cell.isRevealed && cell.isMine ? 'bg-red-900/50' : ''}
-                           `}
-                       >
-                           {renderCell(cell, r, c)}
-                       </button>
-                   )))}
-               </div>
-           </div>
-        </div>
-      )}
-
-      {/* --- VISTA: GAME OVER --- */}
-      {(view === 'game_over_won' || view === 'game_over_lost') && (
-             <div className="absolute inset-0 z-20 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-                <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl shadow-2xl flex flex-col items-center w-full max-w-sm text-center">
-                   {view === 'game_over_won' ? <Trophy className="w-20 h-20 text-yellow-400 mb-4 animate-bounce"/> : <Bomb className="w-20 h-20 text-red-500 mb-4 animate-pulse"/>}
-                   <h2 className="text-3xl font-black text-white mb-2">{view === 'game_over_won' ? '¡DINERO ASEGURADO!' : '¡LO PERDISTE TODO!'}</h2>
-                   
-                   {view === 'game_over_won' && view === 'playing_ai' && (
-                       <div className="mb-6 bg-green-900/20 p-4 rounded-xl border border-green-500/30 w-full">
-                           <p className="text-green-400 text-sm font-bold uppercase mb-1">Ganancia Total</p>
-                           <p className="text-4xl font-black text-white flex justify-center gap-2 items-center">
-                               +{score} <Coins className="w-6 h-6 text-yellow-500"/>
-                           </p>
-                       </div>
-                   )}
-                   
-                   {view === 'game_over_lost' && (
-                        <p className="text-slate-400 mb-6">Perdiste tu apuesta de {bet} monedas.</p>
-                   )}
-
-                   <div className="flex flex-col gap-2 w-full">
-                        {view === 'game_over_lost' && view === 'playing_ai' && lives <= 0 && (
-                            <button onClick={() => watchAd('life')} className="w-full py-3 bg-pink-600 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-pink-500 animate-pulse">
-                                <Play className="w-4 h-4 fill-current"/> REVIVIR (VIDEO)
-                            </button>
-                        )}
-                      <button onClick={() => setView('menu')} className="w-full py-3 bg-slate-800 rounded-xl font-bold text-xs hover:bg-slate-700 border border-slate-700 flex items-center justify-center gap-2">
-                          <RefreshCw className="w-4 h-4"/> VOLVER AL MENÚ
-                      </button>
-                   </div>
-                </div>
-             </div>
-      )}
-
-      <div className="mt-auto w-full max-w-md pt-4 opacity-75"><AdSpace type="banner" /><GameChat gameId="global_chami" gameName="CHAMI LA TÓXICA" /></div>
+        <div className="mt-auto opacity-50 w-full max-w-md pt-4 relative z-10"><AdSpace type="banner" /><GameChat gameId={roomCode || "global_mines"} gameName="MINESWEEPER" /></div>
     </div>
   );
 }
