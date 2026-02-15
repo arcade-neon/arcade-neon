@@ -10,9 +10,12 @@ import { InventoryProvider } from "@/contexts/InventoryContext"; // <--- IMPORTA
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "DAYTHA RIVALS",
-  description: "Desafía. Compite. Domina.",
+export const metadata = {
+  title: 'Daytha Rivals',
+  description: 'Arcade Competitivo',
+  manifest: '/manifest.json', // <--- ESTO ES LO QUE LO CONECTA
+  themeColor: '#020617',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0',
 };
 
 export default function RootLayout({
