@@ -3,17 +3,18 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 // IMPORTAMOS LOS CONTEXTOS
 import { AudioProvider } from "@/contexts/AudioContext";
-import { EconomyProvider } from "@/contexts/EconomyContext"; // <--- NUEVO
+import { EconomyProvider } from "@/contexts/EconomyContext"; 
 import VolumeControl from "@/components/VolumeControl";
-import WalletBar from "@/components/WalletBar"; // <--- NUEVO
-import { InventoryProvider } from "@/contexts/InventoryContext"; // <--- IMPORTAR
+import WalletBar from "@/components/WalletBar"; 
+import { InventoryProvider } from "@/contexts/InventoryContext"; 
+import InstallPWA from "@/components/InstallPWA"; // <--- 1. AÑADIR ESTA IMPORTACIÓN
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: 'Daytha Rivals',
-  description: 'Arcade Competitivo',
-  manifest: '/manifest.json', // <--- ESTO ES LO QUE LO CONECTA
+  description: 'Arcade Competitivo Pro',
+  manifest: '/manifest.json',
   themeColor: '#020617',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0',
 };
@@ -30,7 +31,7 @@ export default function RootLayout({
           {/* 1. ECONOMÍA (El Banco) */}
           <EconomyProvider>
             
-            {/* 2. INVENTARIO (La Tienda y tus objetos) - AQUI VA EL CAMBIO */}
+            {/* 2. INVENTARIO (La Tienda y tus objetos) */}
             <InventoryProvider>
               
               {children}
@@ -38,9 +39,9 @@ export default function RootLayout({
               {/* COMPONENTES FLOTANTES */}
               <WalletBar />
               <VolumeControl />
+              <InstallPWA /> {/* <--- 2. AÑADIR AQUÍ EL BOTÓN DE INSTALACIÓN */}
 
             </InventoryProvider>
-            {/* ----------------------------------------------------------- */}
 
           </EconomyProvider>
         </AudioProvider>

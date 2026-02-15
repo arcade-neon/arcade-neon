@@ -1,7 +1,7 @@
 {
-  "name": "Daytha Rivals",
+  "name": "Daytha Rivals Arcade",
   "short_name": "Daytha",
-  "description": "Arcade Competitivo Pro",
+  "description": "Duelos de arcade competitivos con apuestas de monedas.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Daytha Rivals</string>
+    <string name="title_activity_main">Daytha Rivals</string>
+    <string name="package_name">com.daytha.rivals</string>
+    <string name="custom_url_scheme">com.daytha.rivals</string>
+</resources>
