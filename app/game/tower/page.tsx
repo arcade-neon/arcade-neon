@@ -12,17 +12,17 @@ import {
 import { useAudio } from '@/contexts/AudioContext'; 
 import GameRanking from '@/components/GameRanking';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace'; 
 
-// --- CONFIGURACIÓN FÍSICA ---
+// --- CONFIGURACIÓN BASE ---
 const CONFIG = {
-    BLOCK_WIDTH: 100,
-    BLOCK_HEIGHT: 80,
+    BASE_BLOCK_WIDTH: 100, // Ancho base (se escala según pantalla)
+    BASE_BLOCK_HEIGHT: 80,
     GRAVITY: 10,
     SWING_SPEED_BASE: 0.035, 
     ROPE_HEIGHT: 150, 
-    PERFECT_TOLERANCE: 12,
+    PERFECT_TOLERANCE: 15,
     CAMERA_SPEED: 0.1 
 };
 
@@ -53,20 +53,22 @@ function GameContent() {
   const [inventory, setInventory] = useState<string[]>(['default']); 
   const [equippedSkin, setEquippedSkin] = useState('default');
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
-
   const [perfectCombo, setPerfectCombo] = useState(0);
   
-  // ESTADO DE GUARDADO (DEBUGGING VISUAL)
+  // Estado de guardado
   const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED' | 'ERROR'>('IDLE');
   const [roomCode, setRoomCode] = useState('');
 
-  // --- MODO RETO (URL) ---
+  // Modo Reto
   const [challengeData, setChallengeData] = useState<{name: string, target: number} | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null); // Referencia al contenedor principal
+  const containerRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<number>();
   const { playSound } = useAudio();
+
+  // Factor de escala para móviles (Zoom)
+  const scaleRef = useRef(1);
 
   // Motor del juego
   const gameRef = useRef({
@@ -103,7 +105,6 @@ function GameContent() {
       }
     });
 
-    // Detectar Retos en URL
     const challenger = searchParams.get('challenger');
     const target = searchParams.get('target');
     if (challenger && target) {
@@ -113,14 +114,13 @@ function GameContent() {
     return () => unsub();
   }, [searchParams]);
 
-  // --- EFECTO DE GUARDADO AUTOMÁTICO AL PERDER ---
+  // --- EFECTO DE GUARDADO AUTOMÁTICO ---
   useEffect(() => {
       if (gameState === 'GAMEOVER' && user && score > 0) {
           const saveScore = async () => {
               setSaveStatus('SAVING');
               try {
                   const nameToSave = userNickname || 'Anónimo';
-                  // Guardar en colección específica
                   await addDoc(collection(db, "scores_towerbloxx"), {
                       uid: user.uid,
                       name: nameToSave,
@@ -130,7 +130,6 @@ function GameContent() {
                   });
                   setSaveStatus('SAVED');
                   
-                  // Recompensa de monedas (Opcional)
                   const coinsEarned = Math.floor(score / 2);
                   if (coinsEarned > 0) {
                       await updateDoc(doc(db, "users", user.uid), {
@@ -138,7 +137,6 @@ function GameContent() {
                       });
                       setUserCoins(prev => prev + coinsEarned);
                   }
-
               } catch (error) {
                   console.error("Error guardando:", error);
                   setSaveStatus('ERROR');
@@ -146,10 +144,9 @@ function GameContent() {
           };
           saveScore();
       } else if (gameState === 'GAMEOVER' && !user) {
-          // Si es invitado, no guarda en ranking online
           setSaveStatus('IDLE'); 
       }
-  }, [gameState]); // Se ejecuta solo al entrar en Game Over
+  }, [gameState]);
 
   // --- IA LOGIC ---
   useEffect(() => {
@@ -211,8 +208,14 @@ function GameContent() {
         return;
     }
 
-    const centerX = canvas.width / 2;
-    const groundY = canvas.height - 100;
+    // Calcular centro basado en el tamaño real del canvas lógico
+    // Importante: El canvas.width aquí es el tamaño interno
+    const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
+    const logicalHeight = canvas.height / (window.devicePixelRatio || 1);
+    const centerX = logicalWidth / 2;
+    const groundY = logicalHeight - 150; // Margen inferior para que se vea el suelo
+
+    const scaledWidth = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
 
     gameRef.current = {
         time: 0,
@@ -220,7 +223,7 @@ function GameContent() {
         targetCameraY: 0,
         swingSpeed: CONFIG.SWING_SPEED_BASE,
         currentBlock: { x: centerX, y: 100, state: 'SWINGING' },
-        stack: [{ x: centerX - CONFIG.BLOCK_WIDTH/2, y: groundY, perfect: true }],
+        stack: [{ x: centerX - scaledWidth/2, y: groundY, perfect: true }],
         skin: equippedSkin
     };
     
@@ -228,20 +231,19 @@ function GameContent() {
   };
 
   const watchAdForLife = () => {
-      // Simulación de anuncio
       setLives(prev => prev + 1);
       setGameState('PLAYING'); 
   };
 
-  // --- DIBUJADO DE EDIFICIOS ---
+  // --- DIBUJADO ---
   const drawBuildingBlock = (ctx: CanvasRenderingContext2D, x: number, y: number, isPerfect: boolean, isMoving: boolean, skin: string) => {
-      const w = CONFIG.BLOCK_WIDTH;
-      const h = CONFIG.BLOCK_HEIGHT;
+      // Ajustar tamaño al factor de escala
+      const w = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
+      const h = CONFIG.BASE_BLOCK_HEIGHT * scaleRef.current;
 
-      // Sombra
       if (!isMoving) {
         ctx.fillStyle = 'rgba(0,0,0,0.3)';
-        ctx.fillRect(x + 10, y + 10, w, h);
+        ctx.fillRect(x + (10 * scaleRef.current), y + (10 * scaleRef.current), w, h);
       }
 
       let mainColor1 = '#f1f5f9';
@@ -270,42 +272,52 @@ function GameContent() {
       ctx.fillRect(x, y, w, h);
 
       ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * scaleRef.current;
       ctx.strokeRect(x, y, w, h);
 
+      // Ventanas
       ctx.fillStyle = windowColor; 
-      ctx.fillRect(x + 15, y + 15, 25, 30);
-      ctx.fillRect(x + w - 40, y + 15, 25, 30);
+      ctx.fillRect(x + (15 * scaleRef.current), y + (15 * scaleRef.current), 25 * scaleRef.current, 30 * scaleRef.current);
+      ctx.fillRect(x + w - (40 * scaleRef.current), y + (15 * scaleRef.current), 25 * scaleRef.current, 30 * scaleRef.current);
       
+      // Balcón
       ctx.fillStyle = balconyColor;
-      ctx.fillRect(x + 10, y + 55, w - 20, 10);
+      ctx.fillRect(x + (10 * scaleRef.current), y + (55 * scaleRef.current), w - (20 * scaleRef.current), 10 * scaleRef.current);
   };
 
-  // --- LÓGICA DE UPDATE ---
   const update = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const state = gameRef.current;
+    
+    // Ancho lógico
+    const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
+    const scaledWidth = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
+    const scaledHeight = CONFIG.BASE_BLOCK_HEIGHT * scaleRef.current;
 
     state.cameraY += (state.targetCameraY - state.cameraY) * CONFIG.CAMERA_SPEED;
 
     if (state.currentBlock.state === 'SWINGING') {
         state.time += state.swingSpeed;
-        const swingRange = canvas.width / 2 - CONFIG.BLOCK_WIDTH; 
-        const centerX = canvas.width / 2;
+        const swingRange = logicalWidth / 2 - scaledWidth; 
+        const centerX = logicalWidth / 2;
         const offsetX = Math.sin(state.time) * swingRange;
-        state.currentBlock.x = centerX + offsetX - (CONFIG.BLOCK_WIDTH / 2);
+        
+        state.currentBlock.x = centerX + offsetX - (scaledWidth / 2);
+        // La cuerda se ajusta para que el bloque esté siempre visible arriba
         state.currentBlock.y = (CONFIG.ROPE_HEIGHT + Math.abs(Math.cos(state.time) * 15)) - state.cameraY; 
     }
 
     if (state.currentBlock.state === 'DROPPING') {
         state.currentBlock.y += CONFIG.GRAVITY;
         const prevBlock = state.stack[state.stack.length - 1];
-        const landingY = prevBlock.y - CONFIG.BLOCK_HEIGHT;
+        const landingY = prevBlock.y - scaledHeight;
 
         if (state.currentBlock.y >= landingY) {
-            const overlap = (state.currentBlock.x + CONFIG.BLOCK_WIDTH > prevBlock.x + 15) && 
-                            (state.currentBlock.x < prevBlock.x + CONFIG.BLOCK_WIDTH - 15);
+            // Tolerancia ajustada a la escala
+            const overlapTolerance = 15 * scaleRef.current;
+            const overlap = (state.currentBlock.x + scaledWidth > prevBlock.x + overlapTolerance) && 
+                            (state.currentBlock.x < prevBlock.x + scaledWidth - overlapTolerance);
 
             if (overlap) {
                 state.currentBlock.state = 'LANDED';
@@ -313,7 +325,7 @@ function GameContent() {
                 const centerDiff = Math.abs(state.currentBlock.x - prevBlock.x);
                 let isPerfect = false;
 
-                if (centerDiff < CONFIG.PERFECT_TOLERANCE) {
+                if (centerDiff < (CONFIG.PERFECT_TOLERANCE * scaleRef.current)) {
                     state.currentBlock.x = prevBlock.x; 
                     isPerfect = true;
                     setPerfectCombo(c => c + 1);
@@ -331,18 +343,22 @@ function GameContent() {
                     perfect: isPerfect
                 });
 
-                if (state.stack.length > 3) state.targetCameraY += CONFIG.BLOCK_HEIGHT;
+                // La cámara sube cada vez que apilamos
+                if (state.stack.length > 2) {
+                     state.targetCameraY += scaledHeight;
+                }
+                
                 state.swingSpeed = Math.min(0.12, CONFIG.SWING_SPEED_BASE + (state.stack.length * 0.002));
-                state.currentBlock = { x: canvas.width / 2, y: -100, state: 'SWINGING' };
+                state.currentBlock = { x: logicalWidth / 2, y: -100, state: 'SWINGING' };
 
-            } else if (state.currentBlock.y > canvas.height + state.cameraY) {
-                handleLifeLost(canvas);
+            } else if (state.currentBlock.y > (canvas.height / window.devicePixelRatio) + state.cameraY) {
+                handleLifeLost(logicalWidth);
             }
         }
     }
   };
 
-  const handleLifeLost = (canvas: HTMLCanvasElement) => {
+  const handleLifeLost = (logicalWidth: number) => {
       if (gameRef.current.currentBlock.state === 'LANDED') return;
       gameRef.current.currentBlock.state = 'LANDED'; 
       playSound('error');
@@ -351,10 +367,10 @@ function GameContent() {
       setLives(prevLives => {
           const newLives = prevLives - 1;
           if (newLives > 0) {
-              gameRef.current.currentBlock = { x: canvas.width / 2, y: -100, state: 'SWINGING' };
+              gameRef.current.currentBlock = { x: logicalWidth / 2, y: -100, state: 'SWINGING' };
               return newLives;
           } else {
-              setGameState('GAMEOVER'); // Aquí se activará el useEffect de guardado
+              setGameState('GAMEOVER');
               return 0;
           }
       });
@@ -366,10 +382,15 @@ function GameContent() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const state = gameRef.current;
+    
+    // Limpiar usando el tamaño real
+    const logicalWidth = canvas.width / window.devicePixelRatio;
+    const logicalHeight = canvas.height / window.devicePixelRatio;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, logicalWidth, logicalHeight);
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    // Fondo
+    const gradient = ctx.createLinearGradient(0, 0, 0, logicalHeight);
     if (state.skin === 'cyber') {
         gradient.addColorStop(0, '#2e1065'); gradient.addColorStop(1, '#4c1d95');
     } else if (state.skin === 'gold') {
@@ -378,13 +399,15 @@ function GameContent() {
         gradient.addColorStop(0, '#0f172a'); gradient.addColorStop(1, '#334155');
     }
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, logicalWidth, logicalHeight);
 
     ctx.save();
     ctx.translate(0, state.cameraY);
 
+    // Suelo Dinámico (se calcula en base al primer bloque del stack)
+    const groundY = state.stack[0].y + (CONFIG.BASE_BLOCK_HEIGHT * scaleRef.current);
     ctx.fillStyle = '#1e293b';
-    ctx.fillRect(0, canvas.height - 100 + CONFIG.BLOCK_HEIGHT, canvas.width, 200);
+    ctx.fillRect(0, groundY, logicalWidth, 200);
 
     state.stack.forEach(block => {
         drawBuildingBlock(ctx, block.x, block.y, block.perfect, false, state.skin);
@@ -396,15 +419,19 @@ function GameContent() {
 
     ctx.restore();
 
+    // Grúa
     if (state.currentBlock.state === 'SWINGING') {
-        const originX = canvas.width / 2;
+        const originX = logicalWidth / 2;
         const blockDrawY = state.currentBlock.y + state.cameraY;
+        const scaledWidth = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
+
         ctx.beginPath();
-        ctx.moveTo(originX, 0);
-        ctx.lineTo(state.currentBlock.x + CONFIG.BLOCK_WIDTH/2, blockDrawY);
+        ctx.moveTo(originX, 0); // Origen en el techo visual
+        ctx.lineTo(state.currentBlock.x + scaledWidth/2, blockDrawY);
         ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 4 * scaleRef.current;
         ctx.stroke();
+
         drawBuildingBlock(ctx, state.currentBlock.x, blockDrawY, false, true, state.skin);
     }
   };
@@ -426,7 +453,6 @@ function GameContent() {
       }
   };
 
-  // --- WHATSAPP SHARE ---
   const shareOnWhatsapp = (targetScore = score) => {
       const currentUrl = window.location.origin + window.location.pathname;
       const challengeLink = `${currentUrl}?challenger=${encodeURIComponent(userNickname)}&target=${targetScore}&room=${roomCode}`;
@@ -441,19 +467,25 @@ function GameContent() {
       const container = containerRef.current;
       if (canvas && container) {
           const resize = () => {
-              // El canvas toma el tamaño de su contenedor padre (flex-1)
               const rect = container.getBoundingClientRect(); 
               const dpr = window.devicePixelRatio || 1;
               canvas.width = rect.width * dpr;
               canvas.height = rect.height * dpr;
+              
               const ctx = canvas.getContext('2d');
               ctx?.scale(dpr, dpr);
+
+              // Calcular escala basada en ancho de pantalla
+              // Si es muy estrecha (<400px), reducimos los bloques
+              if (rect.width < 350) scaleRef.current = 0.7;
+              else if (rect.width < 450) scaleRef.current = 0.85;
+              else scaleRef.current = 1.0;
           };
           window.addEventListener('resize', resize);
-          resize(); // Initial sizing
+          resize();
           return () => window.removeEventListener('resize', resize);
       }
-  }, [gameState]); // Re-ejecutar al cambiar estado para asegurar que el canvas existe
+  }, [gameState]);
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(loop);
@@ -463,10 +495,10 @@ function GameContent() {
   return (
     <div className="fixed inset-0 bg-slate-900 flex justify-center items-center overflow-hidden touch-none select-none">
         
-        {/* CONTENEDOR PRINCIPAL FLEX: ARRIBA (HUD) - MEDIO (CANVAS) - ABAJO (CONTROLES) */}
+        {/* CONTENEDOR PRINCIPAL FLEX */}
         <div className="relative w-full h-full max-w-[500px] bg-gradient-to-b from-sky-900 to-slate-900 shadow-2xl overflow-hidden flex flex-col">
             
-            {/* 1. HUD SUPERIOR (FIJO) */}
+            {/* 1. HUD SUPERIOR */}
             <div className="w-full p-4 flex justify-between items-start bg-black/20 z-20 shrink-0 min-h-[80px]">
                 {gameState === 'PLAYING' && (
                     <>
@@ -486,9 +518,8 @@ function GameContent() {
                 )}
             </div>
 
-            {/* 2. AREA DE JUEGO (FLEXIBLE) */}
+            {/* 2. AREA DE JUEGO FLEXIBLE */}
             <div ref={containerRef} className="flex-1 relative w-full overflow-hidden bg-transparent">
-                 {/* CANVAS AQUI DENTRO */}
                  <canvas 
                     ref={canvasRef} 
                     className="absolute inset-0 w-full h-full cursor-pointer"
@@ -497,7 +528,7 @@ function GameContent() {
                 />
             </div>
 
-            {/* 3. MENÚS OVERLAY (SOBREPUESTOS PERO DENTRO DEL FLEX) */}
+            {/* 3. MENÚS OVERLAY */}
             {gameState === 'MENU' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-30 p-6 text-center">
                     <Hammer size={64} className="text-yellow-400 mb-4 animate-bounce" />
@@ -550,10 +581,10 @@ function GameContent() {
 
             {gameState === 'GAMEOVER' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-30 p-4">
-                    <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col items-center mb-4 shadow-2xl w-full max-w-xs">
+                    <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col items-center mb-4 shadow-2xl w-full max-w-xs relative overflow-hidden">
                         <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pisos</span>
                         <div className="text-6xl font-black text-white mb-1">{score}</div>
-                        {/* ESTADO DE GUARDADO */}
+                        
                         <div className="h-6 flex items-center justify-center">
                             {saveStatus === 'SAVING' && <span className="text-yellow-400 text-xs flex gap-1"><Loader2 className="animate-spin" size={12}/> Guardando...</span>}
                             {saveStatus === 'SAVED' && <span className="text-emerald-400 text-xs font-bold flex gap-1"><CheckCircle size={12}/> Récord Guardado</span>}
@@ -568,7 +599,7 @@ function GameContent() {
 
                     <div className="flex gap-3 w-full max-w-xs mb-4">
                         <Link href="/" className="bg-slate-700 text-white p-3 rounded-xl flex-1 flex justify-center items-center"><Home size={24}/></Link>
-                        <button onClick={() => initGame(gameMode)} className="bg-yellow-500 text-black font-black py-3 px-6 rounded-xl flex-[2] flex items-center justify-center gap-2"><RotateCcw size={20} /> REINTENTAR</button>
+                        <button onClick={() => initGame(gameMode)} className="bg-yellow-500 text-black font-black py-3 px-6 rounded-xl flex-[2] flex items-center justify-center gap-2"><RotateCcw size={20} /> OTRA VEZ</button>
                     </div>
 
                      <button onClick={() => shareOnWhatsapp(score)} className="w-full max-w-xs bg-[#25D366] text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg">
@@ -585,6 +616,55 @@ function GameContent() {
             {/* MODALES EXTRA */}
             {showShop && (
                 <div className="absolute inset-0 z-50 bg-black/95 flex flex-col p-6 animate-in slide-in-from-bottom">
+                     {/* CABECERA TIENDA CON FLECHA ATRÁS */}
                      <div className="flex justify-between items-center mb-6">
+                        <button onClick={() => setShowShop(false)} className="bg-slate-800 p-2 rounded-full hover:bg-slate-700 transition-colors">
+                            <ArrowLeft className="text-white" size={24} />
+                        </button>
                         <h2 className="text-2xl font-black text-white flex gap-2"><ShoppingBag className="text-pink-500"/> TIENDA</h2>
-                        <button onClick={() => setShowShop(false)}><X className="text-slate-400"/></button>
+                        <div className="w-10"></div> {/* Espaciador para centrar título */}
+                     </div>
+
+                     <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700 mb-6 flex justify-between items-center">
+                        <span className="text-slate-400 font-bold text-xs uppercase">Tus Monedas</span>
+                        <span className="text-yellow-400 font-black text-xl flex gap-2 items-center"><Coins/> {userCoins}</span>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-20">
+                        {SHOP_ITEMS.map(item => {
+                            const owned = inventory.includes(item.id);
+                            const equipped = equippedSkin === item.id;
+                            return (
+                                <div key={item.id} className={`bg-slate-800 p-4 rounded-2xl border-2 flex flex-col items-center gap-3 ${equipped ? 'border-emerald-500' : 'border-slate-700'}`}>
+                                    <div className="w-12 h-12 rounded shadow-lg" style={{background: item.color}}></div>
+                                    <div className="text-center">
+                                        <div className="text-white font-bold text-sm">{item.name}</div>
+                                        {!owned && <div className="text-yellow-400 text-xs font-bold">{item.price} Monedas</div>}
+                                    </div>
+                                    <button 
+                                        onClick={() => handleBuyOrEquip(item)}
+                                        disabled={buyingItem === item.id}
+                                        className={`w-full py-2 rounded-lg text-xs font-black uppercase ${equipped ? 'bg-emerald-500 text-black' : owned ? 'bg-slate-700 text-white' : 'bg-yellow-500 text-black'}`}
+                                    >
+                                        {equipped ? 'USANDO' : owned ? 'EQUIPAR' : 'COMPRAR'}
+                                    </button>
+                                </div>
+                            )
+                        })}
+                     </div>
+                </div>
+            )}
+
+            <GameRanking gameId="towerbloxx" isOpen={showRanking} onClose={() => setShowRanking(false)} />
+
+        </div>
+    </div>
+  );
+}
+
+export default function TowerBloxxPage() {
+    return (
+        <Suspense fallback={<div className="h-screen w-full bg-slate-900 flex items-center justify-center text-white">Cargando...</div>}>
+            <GameContent />
+        </Suspense>
+    );
+}
