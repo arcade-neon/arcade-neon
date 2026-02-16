@@ -7,12 +7,12 @@ import { useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, Play, RotateCcw, Trophy, Hammer, Heart, 
   Share2, MessageCircle, Home, CheckCircle, Users, Bot, Video, 
-  ShoppingBag, Coins, Lock, Check, Loader2, X
+  ShoppingBag, Coins, Lock, Loader2, X, AlertCircle
 } from 'lucide-react';
 import { useAudio } from '@/contexts/AudioContext'; 
 import GameRanking from '@/components/GameRanking';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace'; 
 
 // --- CONFIGURACIÓN FÍSICA ---
@@ -46,26 +46,29 @@ function GameContent() {
   
   // Estados UI y Usuario
   const [showRanking, setShowRanking] = useState(false);
-  const [showShop, setShowShop] = useState(false); // Modal Tienda
+  const [showShop, setShowShop] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [userNickname, setUserNickname] = useState('');
-  const [userCoins, setUserCoins] = useState(0); // Monedas
+  const [userCoins, setUserCoins] = useState(0);
   const [inventory, setInventory] = useState<string[]>(['default']); 
-  const [equippedSkin, setEquippedSkin] = useState('default'); // Skin actual
+  const [equippedSkin, setEquippedSkin] = useState('default');
   const [buyingItem, setBuyingItem] = useState<string | null>(null);
 
   const [perfectCombo, setPerfectCombo] = useState(0);
-  const [scoreSaved, setScoreSaved] = useState(false);
+  
+  // ESTADO DE GUARDADO (DEBUGGING VISUAL)
+  const [saveStatus, setSaveStatus] = useState<'IDLE' | 'SAVING' | 'SAVED' | 'ERROR'>('IDLE');
   const [roomCode, setRoomCode] = useState('');
 
   // --- MODO RETO (URL) ---
   const [challengeData, setChallengeData] = useState<{name: string, target: number} | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null); // Referencia al contenedor principal
   const requestRef = useRef<number>();
   const { playSound } = useAudio();
 
-  // Referencia mutable para el motor del juego (rendimiento)
+  // Motor del juego
   const gameRef = useRef({
     time: 0,
     cameraY: 0,
@@ -73,10 +76,10 @@ function GameContent() {
     swingSpeed: CONFIG.SWING_SPEED_BASE,
     currentBlock: { x: 0, y: 0, state: 'SWINGING' as 'SWINGING' | 'DROPPING' | 'LANDED' },
     stack: [] as { x: number, y: number, perfect: boolean }[],
-    skin: 'default' // Skin en uso dentro del loop
+    skin: 'default'
   });
 
-  // 1. CARGAR USUARIO, MONEDAS Y SKIN
+  // 1. CARGA DE USUARIO
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (u) => {
       if (u) {
@@ -91,7 +94,7 @@ function GameContent() {
                 if(data.inventory) setInventory(data.inventory);
                 if(data.equippedTowerSkin) {
                     setEquippedSkin(data.equippedTowerSkin);
-                    gameRef.current.skin = data.equippedTowerSkin; // Actualizar ref del juego
+                    gameRef.current.skin = data.equippedTowerSkin;
                 }
             } else {
                 setUserNickname(u.displayName || 'Jugador');
@@ -100,7 +103,7 @@ function GameContent() {
       }
     });
 
-    // Detectar Retos
+    // Detectar Retos en URL
     const challenger = searchParams.get('challenger');
     const target = searchParams.get('target');
     if (challenger && target) {
@@ -109,6 +112,44 @@ function GameContent() {
 
     return () => unsub();
   }, [searchParams]);
+
+  // --- EFECTO DE GUARDADO AUTOMÁTICO AL PERDER ---
+  useEffect(() => {
+      if (gameState === 'GAMEOVER' && user && score > 0) {
+          const saveScore = async () => {
+              setSaveStatus('SAVING');
+              try {
+                  const nameToSave = userNickname || 'Anónimo';
+                  // Guardar en colección específica
+                  await addDoc(collection(db, "scores_towerbloxx"), {
+                      uid: user.uid,
+                      name: nameToSave,
+                      score: score,
+                      photo: user.photoURL || null,
+                      date: serverTimestamp()
+                  });
+                  setSaveStatus('SAVED');
+                  
+                  // Recompensa de monedas (Opcional)
+                  const coinsEarned = Math.floor(score / 2);
+                  if (coinsEarned > 0) {
+                      await updateDoc(doc(db, "users", user.uid), {
+                          coins: (userCoins || 0) + coinsEarned
+                      });
+                      setUserCoins(prev => prev + coinsEarned);
+                  }
+
+              } catch (error) {
+                  console.error("Error guardando:", error);
+                  setSaveStatus('ERROR');
+              }
+          };
+          saveScore();
+      } else if (gameState === 'GAMEOVER' && !user) {
+          // Si es invitado, no guarda en ranking online
+          setSaveStatus('IDLE'); 
+      }
+  }, [gameState]); // Se ejecuta solo al entrar en Game Over
 
   // --- IA LOGIC ---
   useEffect(() => {
@@ -120,25 +161,23 @@ function GameContent() {
       }
   }, [gameState, gameMode]);
 
-  // --- TIENDA: COMPRAR O EQUIPAR ---
+  // --- TIENDA ---
   const handleBuyOrEquip = async (item: any) => {
       if (!user) return alert("Inicia sesión para usar la tienda.");
 
       if (inventory.includes(item.id)) {
-          // EQUIPAR
           setEquippedSkin(item.id);
-          gameRef.current.skin = item.id; // Actualizar motor inmediato
+          gameRef.current.skin = item.id;
           playSound('click');
           await updateDoc(doc(db, "users", user.uid), { equippedTowerSkin: item.id });
       } else {
-          // COMPRAR
           if (userCoins >= item.price) {
               setBuyingItem(item.id);
               try {
                   await updateDoc(doc(db, "users", user.uid), {
                       coins: userCoins - item.price,
                       inventory: arrayUnion(item.id),
-                      equippedTowerSkin: item.id // Equipar al comprar
+                      equippedTowerSkin: item.id
                   });
                   setUserCoins(prev => prev - item.price);
                   setInventory(prev => [...prev, item.id]);
@@ -154,26 +193,7 @@ function GameContent() {
       }
   };
 
-  // --- GUARDAR RANKING (CORREGIDO) ---
-  const saveRankingDirectly = async (finalScore: number) => {
-      if (!user || finalScore === 0) return;
-      try {
-          const nameToSave = userNickname || user.displayName || 'Anónimo';
-          await addDoc(collection(db, "scores_towerbloxx"), {
-              uid: user.uid,
-              name: nameToSave,
-              score: finalScore,
-              photo: user.photoURL || null,
-              date: serverTimestamp()
-          });
-          setScoreSaved(true);
-          console.log("Ranking guardado correctamente para:", nameToSave);
-      } catch (e) {
-          console.error("Error guardando ranking:", e);
-      }
-  };
-
-  // --- MOTOR DEL JUEGO ---
+  // --- INICIO DE JUEGO ---
   const initGame = (mode: 'SOLO' | 'VS_AI' | 'VS_FRIEND' = 'SOLO') => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -183,7 +203,7 @@ function GameContent() {
     setAiScore(0);
     setLives(3);
     setPerfectCombo(0);
-    setScoreSaved(false);
+    setSaveStatus('IDLE');
     
     if (mode === 'VS_FRIEND') {
         setRoomCode(Math.random().toString(36).substring(2, 8).toUpperCase());
@@ -201,19 +221,19 @@ function GameContent() {
         swingSpeed: CONFIG.SWING_SPEED_BASE,
         currentBlock: { x: centerX, y: 100, state: 'SWINGING' },
         stack: [{ x: centerX - CONFIG.BLOCK_WIDTH/2, y: groundY, perfect: true }],
-        skin: equippedSkin // Usar skin equipada
+        skin: equippedSkin
     };
     
     setGameState('PLAYING');
   };
 
   const watchAdForLife = () => {
-      alert("Simulación: Viendo anuncio publicitario (+1 Vida)...");
+      // Simulación de anuncio
       setLives(prev => prev + 1);
       setGameState('PLAYING'); 
   };
 
-  // --- DIBUJADO DE EDIFICIOS (CON SKINS) ---
+  // --- DIBUJADO DE EDIFICIOS ---
   const drawBuildingBlock = (ctx: CanvasRenderingContext2D, x: number, y: number, isPerfect: boolean, isMoving: boolean, skin: string) => {
       const w = CONFIG.BLOCK_WIDTH;
       const h = CONFIG.BLOCK_HEIGHT;
@@ -224,7 +244,6 @@ function GameContent() {
         ctx.fillRect(x + 10, y + 10, w, h);
       }
 
-      // Estilos según Skin
       let mainColor1 = '#f1f5f9';
       let mainColor2 = '#94a3b8';
       let windowColor = '#0ea5e9';
@@ -233,44 +252,36 @@ function GameContent() {
 
       if (skin === 'gold') {
           mainColor1 = '#fde047'; mainColor2 = '#d97706';
-          windowColor = '#fef3c7'; balconyColor = '#78350f';
-          strokeColor = '#b45309';
+          windowColor = '#fef3c7'; balconyColor = '#78350f'; strokeColor = '#b45309';
       } else if (skin === 'cyber') {
           mainColor1 = '#e879f9'; mainColor2 = '#a21caf';
-          windowColor = '#22d3ee'; balconyColor = '#4c1d95';
-          strokeColor = '#f0abfc';
+          windowColor = '#22d3ee'; balconyColor = '#4c1d95'; strokeColor = '#f0abfc';
       } else if (skin === 'eco') {
           mainColor1 = '#a3e635'; mainColor2 = '#3f6212';
           windowColor = '#bae6fd'; balconyColor = '#365314';
       }
 
-      // Si es perfecto, brilla más
-      if (isPerfect) {
-           mainColor1 = '#fef08a'; // Amarillo pálido universal para perfecto
-      }
+      if (isPerfect) mainColor1 = '#fef08a';
 
-      // Gradiente
       const gradient = ctx.createLinearGradient(x, y, x + w, y);
       gradient.addColorStop(0, mainColor1);
       gradient.addColorStop(1, mainColor2);
       ctx.fillStyle = gradient;
       ctx.fillRect(x, y, w, h);
 
-      // Borde
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 2;
       ctx.strokeRect(x, y, w, h);
 
-      // Ventanas
       ctx.fillStyle = windowColor; 
       ctx.fillRect(x + 15, y + 15, 25, 30);
       ctx.fillRect(x + w - 40, y + 15, 25, 30);
       
-      // Balcón
       ctx.fillStyle = balconyColor;
       ctx.fillRect(x + 10, y + 55, w - 20, 10);
   };
 
+  // --- LÓGICA DE UPDATE ---
   const update = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -322,8 +333,6 @@ function GameContent() {
 
                 if (state.stack.length > 3) state.targetCameraY += CONFIG.BLOCK_HEIGHT;
                 state.swingSpeed = Math.min(0.12, CONFIG.SWING_SPEED_BASE + (state.stack.length * 0.002));
-                
-                // Generar nuevo bloque
                 state.currentBlock = { x: canvas.width / 2, y: -100, state: 'SWINGING' };
 
             } else if (state.currentBlock.y > canvas.height + state.cameraY) {
@@ -345,15 +354,10 @@ function GameContent() {
               gameRef.current.currentBlock = { x: canvas.width / 2, y: -100, state: 'SWINGING' };
               return newLives;
           } else {
-              endGame();
+              setGameState('GAMEOVER'); // Aquí se activará el useEffect de guardado
               return 0;
           }
       });
-  };
-
-  const endGame = () => {
-    setGameState('GAMEOVER');
-    saveRankingDirectly(score); // GUARDADO SEGURO
   };
 
   const draw = () => {
@@ -365,7 +369,6 @@ function GameContent() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Fondo (varía ligeramente según skin para atmósfera)
     const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
     if (state.skin === 'cyber') {
         gradient.addColorStop(0, '#2e1065'); gradient.addColorStop(1, '#4c1d95');
@@ -380,11 +383,9 @@ function GameContent() {
     ctx.save();
     ctx.translate(0, state.cameraY);
 
-    // Suelo
     ctx.fillStyle = '#1e293b';
     ctx.fillRect(0, canvas.height - 100 + CONFIG.BLOCK_HEIGHT, canvas.width, 200);
 
-    // Torre
     state.stack.forEach(block => {
         drawBuildingBlock(ctx, block.x, block.y, block.perfect, false, state.skin);
     });
@@ -395,7 +396,6 @@ function GameContent() {
 
     ctx.restore();
 
-    // Grúa
     if (state.currentBlock.state === 'SWINGING') {
         const originX = canvas.width / 2;
         const blockDrawY = state.currentBlock.y + state.cameraY;
@@ -405,7 +405,6 @@ function GameContent() {
         ctx.strokeStyle = '#94a3b8';
         ctx.lineWidth = 4;
         ctx.stroke();
-
         drawBuildingBlock(ctx, state.currentBlock.x, blockDrawY, false, true, state.skin);
     }
   };
@@ -427,23 +426,34 @@ function GameContent() {
       }
   };
 
+  // --- WHATSAPP SHARE ---
+  const shareOnWhatsapp = (targetScore = score) => {
+      const currentUrl = window.location.origin + window.location.pathname;
+      const challengeLink = `${currentUrl}?challenger=${encodeURIComponent(userNickname)}&target=${targetScore}&room=${roomCode}`;
+      const text = `🏗️ *CONSTRUCCIONES CHALLENGE* \n\nHe construido ${targetScore} pisos. \nCódigo de Sala: *${roomCode || 'SOLO'}* \n\n¿Puedes superarme? \n${challengeLink}`;
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(whatsappUrl, '_blank');
+  };
+
   // --- RESPONSIVE CANVAS ---
   useEffect(() => {
       const canvas = canvasRef.current;
-      if (canvas) {
+      const container = containerRef.current;
+      if (canvas && container) {
           const resize = () => {
+              // El canvas toma el tamaño de su contenedor padre (flex-1)
+              const rect = container.getBoundingClientRect(); 
               const dpr = window.devicePixelRatio || 1;
-              const rect = canvas.getBoundingClientRect();
               canvas.width = rect.width * dpr;
               canvas.height = rect.height * dpr;
               const ctx = canvas.getContext('2d');
               ctx?.scale(dpr, dpr);
           };
           window.addEventListener('resize', resize);
-          resize();
+          resize(); // Initial sizing
           return () => window.removeEventListener('resize', resize);
       }
-  }, []);
+  }, [gameState]); // Re-ejecutar al cambiar estado para asegurar que el canvas existe
 
   useEffect(() => {
       requestRef.current = requestAnimationFrame(loop);
@@ -453,11 +463,33 @@ function GameContent() {
   return (
     <div className="fixed inset-0 bg-slate-900 flex justify-center items-center overflow-hidden touch-none select-none">
         
-        <div className="relative w-full h-[100dvh] max-w-[500px] bg-gradient-to-b from-sky-900 to-slate-900 shadow-2xl overflow-hidden flex flex-col">
+        {/* CONTENEDOR PRINCIPAL FLEX: ARRIBA (HUD) - MEDIO (CANVAS) - ABAJO (CONTROLES) */}
+        <div className="relative w-full h-full max-w-[500px] bg-gradient-to-b from-sky-900 to-slate-900 shadow-2xl overflow-hidden flex flex-col">
             
-            {/* CANVAS */}
-            <div className="flex-1 relative w-full overflow-hidden">
-                <canvas 
+            {/* 1. HUD SUPERIOR (FIJO) */}
+            <div className="w-full p-4 flex justify-between items-start bg-black/20 z-20 shrink-0 min-h-[80px]">
+                {gameState === 'PLAYING' && (
+                    <>
+                        <button onClick={() => setGameState('MENU')} className="p-2 bg-black/40 rounded-full text-white backdrop-blur-md">
+                            <ArrowLeft size={20} />
+                        </button>
+                        {gameMode === 'VS_AI' && <div className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-black shadow-lg">IA: {aiScore}</div>}
+                        <div className="flex flex-col items-end">
+                            <div className="flex gap-1 mb-2 bg-black/30 p-2 rounded-full backdrop-blur-sm">
+                                {[...Array(3)].map((_, i) => (
+                                    <Heart key={i} size={20} className={i < lives ? "fill-red-500 text-red-500" : "text-slate-600 fill-slate-800"} />
+                                ))}
+                            </div>
+                            <div className="text-4xl font-black text-white font-mono">{score}</div>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* 2. AREA DE JUEGO (FLEXIBLE) */}
+            <div ref={containerRef} className="flex-1 relative w-full overflow-hidden bg-transparent">
+                 {/* CANVAS AQUI DENTRO */}
+                 <canvas 
                     ref={canvasRef} 
                     className="absolute inset-0 w-full h-full cursor-pointer"
                     onPointerDown={handleTap}
@@ -465,75 +497,47 @@ function GameContent() {
                 />
             </div>
 
-            {/* --- HUD --- */}
-            {gameState === 'PLAYING' && (
-                <div className="absolute top-0 w-full p-4 flex justify-between items-start pointer-events-none z-20">
-                    <button onClick={() => setGameState('MENU')} className="pointer-events-auto p-2 bg-black/40 rounded-full text-white backdrop-blur-md">
-                        <ArrowLeft size={20} />
-                    </button>
-                    {gameMode === 'VS_AI' && <div className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-black shadow-lg">IA: {aiScore}</div>}
-                    <div className="flex flex-col items-end">
-                        <div className="flex gap-1 mb-2 bg-black/30 p-2 rounded-full backdrop-blur-sm">
-                            {[...Array(3)].map((_, i) => (
-                                <Heart key={i} size={20} className={i < lives ? "fill-red-500 text-red-500" : "text-slate-600 fill-slate-800"} />
-                            ))}
-                        </div>
-                        <div className="text-5xl font-black text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.5)] font-mono">{score}</div>
-                    </div>
-                </div>
-            )}
-
-            {/* --- MENÚ PRINCIPAL --- */}
+            {/* 3. MENÚS OVERLAY (SOBREPUESTOS PERO DENTRO DEL FLEX) */}
             {gameState === 'MENU' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-30 animate-in fade-in p-6 text-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-30 p-6 text-center">
                     <Hammer size={64} className="text-yellow-400 mb-4 animate-bounce" />
-                    
                     {challengeData ? (
-                        <div className="mb-6 bg-slate-800 p-6 rounded-3xl border-2 border-yellow-500 shadow-2xl w-full max-w-xs">
-                            <h2 className="text-2xl font-black text-white mb-4">Reto de {challengeData.name}</h2>
+                        <div className="mb-6 bg-slate-800 p-6 rounded-3xl border-2 border-yellow-500 w-full max-w-xs">
+                            <h2 className="text-xl font-black text-white">Reto de {challengeData.name}</h2>
                             <p className="text-3xl font-black text-white">{challengeData.target} <span className="text-xs text-yellow-500">PISOS</span></p>
                             <button onClick={() => initGame('SOLO')} className="mt-4 w-full bg-yellow-500 text-black font-black py-3 rounded-xl">ACEPTAR</button>
                         </div>
                     ) : (
-                        <>
-                            <h1 className="text-5xl font-black text-white italic tracking-tighter mb-1">CONSTRUCCIONES</h1>
-                            <div className="w-full max-w-xs space-y-3 mt-8">
-                                <button onClick={() => setGameState('MODE_SELECT')} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.4)] transition-all flex items-center justify-center gap-2">
-                                    <Play fill="black" size={20}/> JUGAR AHORA
+                        <div className="w-full max-w-xs space-y-3">
+                            <h1 className="text-4xl font-black text-white italic tracking-tighter mb-4">CONSTRUCCIONES</h1>
+                            <button onClick={() => setGameState('MODE_SELECT')} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center justify-center gap-2">
+                                <Play fill="black" size={20}/> JUGAR
+                            </button>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => setShowRanking(true)} className="bg-slate-800 text-white font-bold py-4 rounded-xl border border-slate-700 flex items-center justify-center gap-2 text-xs">
+                                    <Trophy size={16} className="text-yellow-500"/> RANKING
                                 </button>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button onClick={() => setShowRanking(true)} className="bg-slate-800 text-white font-bold py-4 rounded-xl border border-slate-700 flex items-center justify-center gap-2 text-xs">
-                                        <Trophy size={16} className="text-yellow-500"/> RANKING
-                                    </button>
-                                    <button onClick={() => setShowShop(true)} className="bg-slate-800 text-white font-bold py-4 rounded-xl border border-slate-700 flex items-center justify-center gap-2 text-xs hover:border-pink-500 transition-colors">
-                                        <ShoppingBag size={16} className="text-pink-500"/> TIENDA
-                                    </button>
-                                </div>
+                                <button onClick={() => setShowShop(true)} className="bg-slate-800 text-white font-bold py-4 rounded-xl border border-slate-700 flex items-center justify-center gap-2 text-xs">
+                                    <ShoppingBag size={16} className="text-pink-500"/> TIENDA
+                                </button>
                             </div>
-                        </>
+                        </div>
                     )}
-                    
-                    {/* PUBLICIDAD ABAJO DEL TODO */}
-                    <div className="absolute bottom-0 w-full bg-black">
-                        <AdSpace type="banner" />
-                    </div>
                 </div>
             )}
 
-            {/* --- SELECCIÓN DE MODO --- */}
             {gameState === 'MODE_SELECT' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 animate-in zoom-in p-6">
-                    <h2 className="text-2xl font-black text-white mb-6 uppercase">Elige Modo</h2>
-                    <div className="w-full max-w-xs space-y-4">
-                        <button onClick={() => initGame('SOLO')} className="w-full bg-slate-800 p-4 rounded-2xl border border-slate-600 flex items-center gap-4 hover:bg-slate-700"><Hammer size={24} className="text-yellow-400"/><div className="text-left"><div className="font-black text-white">SOLITARIO</div></div></button>
-                        <button onClick={() => initGame('VS_AI')} className="w-full bg-slate-800 p-4 rounded-2xl border border-slate-600 flex items-center gap-4 hover:bg-slate-700"><Bot size={24} className="text-red-400"/><div className="text-left"><div className="font-black text-white">VS IA</div></div></button>
-                        <button onClick={() => initGame('VS_FRIEND')} className="w-full bg-slate-800 p-4 rounded-2xl border border-slate-600 flex items-center gap-4 hover:bg-slate-700"><Users size={24} className="text-green-400"/><div className="text-left"><div className="font-black text-white">RETAR AMIGO</div></div></button>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 p-6">
+                    <h2 className="text-xl font-black text-white mb-6 uppercase">ELIGE MODO</h2>
+                    <div className="w-full max-w-xs space-y-3">
+                        <button onClick={() => initGame('SOLO')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center"><Hammer className="text-yellow-400"/> <span className="font-bold text-white">SOLITARIO</span></button>
+                        <button onClick={() => initGame('VS_AI')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center"><Bot className="text-red-400"/> <span className="font-bold text-white">VS IA</span></button>
+                        <button onClick={() => initGame('VS_FRIEND')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center"><Users className="text-green-400"/> <span className="font-bold text-white">RETAR AMIGO</span></button>
                     </div>
-                    <button onClick={() => setGameState('MENU')} className="mt-8 text-slate-500 flex items-center gap-2 text-sm font-bold"><ArrowLeft size={16}/> VOLVER</button>
+                    <button onClick={() => setGameState('MENU')} className="mt-8 text-slate-500 text-sm font-bold flex gap-2"><ArrowLeft size={16}/> VOLVER</button>
                 </div>
             )}
 
-            {/* --- LOBBY MULTIJUGADOR --- */}
             {gameState === 'MULTIPLAYER_LOBBY' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 p-6 text-center">
                     <h2 className="text-xl font-black text-white mb-2">SALA CREADA</h2>
@@ -544,82 +548,43 @@ function GameContent() {
                 </div>
             )}
 
-            {/* --- TIENDA MODAL --- */}
+            {gameState === 'GAMEOVER' && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-30 p-4">
+                    <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col items-center mb-4 shadow-2xl w-full max-w-xs">
+                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pisos</span>
+                        <div className="text-6xl font-black text-white mb-1">{score}</div>
+                        {/* ESTADO DE GUARDADO */}
+                        <div className="h-6 flex items-center justify-center">
+                            {saveStatus === 'SAVING' && <span className="text-yellow-400 text-xs flex gap-1"><Loader2 className="animate-spin" size={12}/> Guardando...</span>}
+                            {saveStatus === 'SAVED' && <span className="text-emerald-400 text-xs font-bold flex gap-1"><CheckCircle size={12}/> Récord Guardado</span>}
+                            {saveStatus === 'ERROR' && <span className="text-red-400 text-xs font-bold flex gap-1"><AlertCircle size={12}/> Error al guardar</span>}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 w-full max-w-xs mb-4">
+                        <button onClick={watchAdForLife} className="bg-purple-600/20 border border-purple-500/50 text-purple-300 p-3 rounded-xl flex flex-col items-center"><Video size={20}/> <span className="text-[10px] font-black uppercase">+1 VIDA</span></button>
+                        <button className="bg-blue-600/20 border border-blue-500/50 text-blue-300 p-3 rounded-xl flex flex-col items-center"><Bot size={20}/> <span className="text-[10px] font-black uppercase">PISTA</span></button>
+                    </div>
+
+                    <div className="flex gap-3 w-full max-w-xs mb-4">
+                        <Link href="/" className="bg-slate-700 text-white p-3 rounded-xl flex-1 flex justify-center items-center"><Home size={24}/></Link>
+                        <button onClick={() => initGame(gameMode)} className="bg-yellow-500 text-black font-black py-3 px-6 rounded-xl flex-[2] flex items-center justify-center gap-2"><RotateCcw size={20} /> REINTENTAR</button>
+                    </div>
+
+                     <button onClick={() => shareOnWhatsapp(score)} className="w-full max-w-xs bg-[#25D366] text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg">
+                        <MessageCircle size={20}/> RETAR CONTACTO
+                    </button>
+                </div>
+            )}
+
+            {/* 4. PUBLICIDAD Y FOOTER (FIJO ABAJO) */}
+            <div className="w-full bg-black shrink-0 z-50">
+                <AdSpace type="banner" />
+            </div>
+
+            {/* MODALES EXTRA */}
             {showShop && (
                 <div className="absolute inset-0 z-50 bg-black/95 flex flex-col p-6 animate-in slide-in-from-bottom">
                      <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-black text-white flex gap-2"><ShoppingBag className="text-pink-500"/> TIENDA</h2>
                         <button onClick={() => setShowShop(false)}><X className="text-slate-400"/></button>
-                     </div>
-                     <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700 mb-6 flex justify-between items-center">
-                        <span className="text-slate-400 font-bold text-xs uppercase">Tus Monedas</span>
-                        <span className="text-yellow-400 font-black text-xl flex gap-2 items-center"><Coins/> {userCoins}</span>
-                     </div>
-                     <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-20">
-                        {SHOP_ITEMS.map(item => {
-                            const owned = inventory.includes(item.id);
-                            const equipped = equippedSkin === item.id;
-                            return (
-                                <div key={item.id} className={`bg-slate-800 p-4 rounded-2xl border-2 flex flex-col items-center gap-3 ${equipped ? 'border-emerald-500' : 'border-slate-700'}`}>
-                                    <div className="w-12 h-12 rounded shadow-lg" style={{background: item.color}}></div>
-                                    <div className="text-center">
-                                        <div className="text-white font-bold text-sm">{item.name}</div>
-                                        {!owned && <div className="text-yellow-400 text-xs font-bold">{item.price} Monedas</div>}
-                                    </div>
-                                    <button 
-                                        onClick={() => handleBuyOrEquip(item)}
-                                        disabled={buyingItem === item.id}
-                                        className={`w-full py-2 rounded-lg text-xs font-black uppercase ${equipped ? 'bg-emerald-500 text-black' : owned ? 'bg-slate-700 text-white' : 'bg-yellow-500 text-black'}`}
-                                    >
-                                        {equipped ? 'USANDO' : owned ? 'EQUIPAR' : 'COMPRAR'}
-                                    </button>
-                                </div>
-                            )
-                        })}
-                     </div>
-                </div>
-            )}
-
-            {/* --- GAME OVER --- */}
-            {gameState === 'GAMEOVER' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-30 animate-in zoom-in duration-300 p-4">
-                    <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col items-center mb-4 shadow-2xl w-full max-w-xs relative overflow-hidden">
-                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pisos Construidos</span>
-                        <div className="text-7xl font-black text-white mb-1">{score}</div>
-                        {scoreSaved && <div className="text-emerald-400 text-[10px] font-bold uppercase flex items-center gap-1"><CheckCircle size={10}/> Guardado</div>}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 w-full max-w-xs mb-4">
-                        <button onClick={watchAdForLife} className="bg-purple-600/20 border border-purple-500/50 hover:bg-purple-600 hover:text-white text-purple-300 p-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all">
-                            <Video size={20}/> <span className="text-[10px] font-black uppercase">+1 VIDA</span>
-                        </button>
-                        <button className="bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600 hover:text-white text-blue-300 p-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all">
-                            <Bot size={20}/> <span className="text-[10px] font-black uppercase">PISTA</span>
-                        </button>
-                    </div>
-
-                    <div className="flex gap-3 w-full max-w-xs">
-                        <Link href="/" className="bg-slate-700 text-white p-3 rounded-xl flex-1 flex justify-center items-center"><Home size={24}/></Link>
-                        <button onClick={() => initGame(gameMode)} className="bg-yellow-500 text-black font-black py-3 px-6 rounded-xl flex-[2] flex items-center justify-center gap-2 hover:scale-105 transition-transform"><RotateCcw size={20} /> OTRA VEZ</button>
-                    </div>
-
-                    {/* PUBLICIDAD ABAJO DEL TODO */}
-                    <div className="absolute bottom-0 w-full bg-black">
-                        <AdSpace type="banner" />
-                    </div>
-                </div>
-            )}
-
-            <GameRanking gameId="towerbloxx" isOpen={showRanking} onClose={() => setShowRanking(false)} />
-        </div>
-    </div>
-  );
-}
-
-export default function TowerBloxxPage() {
-    return (
-        <Suspense fallback={<div className="h-screen w-full bg-slate-900 flex items-center justify-center text-white">Cargando...</div>}>
-            <GameContent />
-        </Suspense>
-    );
-}
