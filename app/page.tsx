@@ -8,11 +8,11 @@ import {
   Grid3X3, Video, Ghost, Swords, Layers, 
   Skull, Activity, Bomb, LayoutList, ShoppingCart,
   Brain, Circle, Anchor, DollarSign, Share2, Zap, Coins, Plus, Disc, Crown,
-  GripHorizontal, LogOut, Globe, Save, Loader2, Edit3 // <--- ICONOS NUEVOS
+  GripHorizontal, LogOut, Globe, Save, Loader2, Edit3, Hammer // <--- AÑADIDO HAMMER
 } from 'lucide-react';
-import { auth, googleProvider, db } from '@/lib/firebase'; // <--- IMPORTANTE: db
+import { auth, googleProvider, db } from '@/lib/firebase';
 import { signInWithPopup, signInAnonymously, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore'; // <--- IMPORTANTE: FIRESTORE
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace';
 import { useAudio } from '@/contexts/AudioContext';
 import { useEconomy } from '@/contexts/EconomyContext';
@@ -63,7 +63,20 @@ const TRANSLATIONS = {
 
 // --- CONFIGURACIÓN DE TUS JUEGOS ---
 const GAMES = [
-  // 1. UNO
+  // 1. TOWER BLOXX (NUEVO)
+  {
+    id: 'towerbloxx', 
+    title: 'TOWER BLOXX', 
+    slogan: 'CONSTRUYE ALTO', 
+    href: '/game/tower', 
+    icon: Hammer, 
+    color: 'yellow', 
+    border: 'border-yellow-500', 
+    shadow: 'shadow-yellow-500/20', 
+    text: 'text-yellow-400', 
+    bg: 'bg-yellow-950/20'
+  },
+  // 2. UNO
   {
     id: 'uno', 
     title: 'UNO', 
@@ -71,7 +84,7 @@ const GAMES = [
     href: '/game/uno', 
     icon: Layers, color: 'red', border: 'border-red-500', shadow: 'shadow-red-500/20', text: 'text-red-400', bg: 'bg-red-950/20'
   },
-  // 2. BLOQUES
+  // 3. BLOQUES
   {
     id: 'stack', 
     title: 'BLOQUES', 
@@ -84,7 +97,7 @@ const GAMES = [
     text: 'text-emerald-400', 
     bg: 'bg-emerald-950/20'
   },
-  // 3. HUNDIR LA FLOTA
+  // 4. HUNDIR LA FLOTA
   {
     id: 'battleship', 
     title: 'HUNDIR LA FLOTA', 
@@ -92,7 +105,7 @@ const GAMES = [
     href: '/game/battleship', 
     icon: Anchor, color: 'cyan', border: 'border-cyan-500', shadow: 'shadow-cyan-500/20', text: 'text-cyan-400', bg: 'bg-cyan-950/20'
   },
-  // 4. DAMAS PRO
+  // 5. DAMAS PRO
   {
     id: 'checkers', 
     title: 'DAMAS PRO', 
@@ -100,7 +113,7 @@ const GAMES = [
     href: '/game/checkers', 
     icon: Circle, color: 'rose', border: 'border-rose-500', shadow: 'shadow-rose-500/20', text: 'text-rose-400', bg: 'bg-rose-950/20'
   },
-  // 5. DOMINO
+  // 6. DOMINO
   {
     id: 'domino', 
     title: 'DOMINO', 
@@ -108,22 +121,22 @@ const GAMES = [
     href: '/game/domino', 
     icon: GripHorizontal, color: 'yellow', border: 'border-yellow-500', shadow: 'shadow-yellow-500/20', text: 'text-yellow-400', bg: 'bg-yellow-950/20'
   },
-  // 6. SOLITARIO
+  // 7. SOLITARIO
   {
     id: 'solitaire', title: 'SOLITARIO', slogan: 'CYBER DECK PRO', href: '/game/solitaire', 
     icon: Layers, color: 'blue', border: 'border-blue-500', shadow: 'shadow-blue-500/20', text: 'text-blue-400', bg: 'bg-blue-950/20'
   },
-  // 7. PIEDRA PAPEL TIJERA
+  // 8. PIEDRA PAPEL TIJERA
   {
     id: 'rps', title: 'PIEDRA PAPEL TIJERA', slogan: 'CLÁSICO RÁPIDO', href: '/game/rps', 
     icon: Swords, color: 'pink', border: 'border-pink-500', shadow: 'shadow-pink-500/20', text: 'text-pink-400', bg: 'bg-pink-950/20'
   },
-  // 8. TRES EN RAYA
+  // 9. TRES EN RAYA
   {
     id: 'tictactoe', title: '3 EN RAYA', slogan: 'DUELO MENTAL', href: '/game/tictactoe', 
     icon: Hash, color: 'teal', border: 'border-teal-500', shadow: 'shadow-teal-500/20', text: 'text-teal-400', bg: 'bg-teal-950/20'
   },
-  // 9. JUEGO DE LA SERPIENTE
+  // 10. JUEGO DE LA SERPIENTE
   {
     id: 'snake', 
     title: 'JUEGO DE LA SERPIENTE', 
@@ -131,17 +144,17 @@ const GAMES = [
     href: '/game/snake', 
     icon: Activity, color: 'green', border: 'border-green-500', shadow: 'shadow-green-500/20', text: 'text-green-400', bg: 'bg-green-950/20'
   },
-  // 10. SOPA DE LETRAS
+  // 11. SOPA DE LETRAS
   {
     id: 'wordsearch', title: 'SOPA DE LETRAS', slogan: 'BUSCA Y ENCUENTRA', href: '/game/wordsearch', 
     icon: Search, color: 'sky', border: 'border-sky-500', shadow: 'shadow-sky-500/20', text: 'text-sky-400', bg: 'bg-sky-950/20'
   },
-  // 11. SUDOKU
+  // 12. SUDOKU
   {
     id: 'sudoku', title: 'SUDOKU', slogan: 'LÓGICA PURA', href: '/game/sudoku', 
     icon: Grid3X3, color: 'indigo', border: 'border-indigo-500', shadow: 'shadow-indigo-500/20', text: 'text-indigo-400', bg: 'bg-indigo-950/20'
   },
-  // 12. JUEGO DE LAS PAREJAS
+  // 13. JUEGO DE LAS PAREJAS
   {
     id: 'memory', 
     title: 'JUEGO DE LAS PAREJAS', 
@@ -149,32 +162,32 @@ const GAMES = [
     href: '/game/memory', 
     icon: Brain, color: 'fuchsia', border: 'border-fuchsia-500', shadow: 'shadow-fuchsia-500/20', text: 'text-fuchsia-400', bg: 'bg-fuchsia-950/20'
   },
-  // 13. CONNECT 4
+  // 14. CONNECT 4
   {
     id: 'connect4', title: 'CONNECT 4', slogan: 'ESTRATEGIA VERTICAL', href: '/game/connect4', 
     icon: Circle, color: 'orange', border: 'border-orange-500', shadow: 'shadow-orange-500/20', text: 'text-orange-400', bg: 'bg-orange-950/20'
   },
-  // 14. TETRIS
+  // 15. TETRIS
   {
     id: 'tetris', title: 'TETRIX', slogan: 'ENCAJA LAS PIEZAS', href: '/game/tetris', 
     icon: Gamepad2, color: 'purple', border: 'border-purple-500', shadow: 'shadow-purple-500/20', text: 'text-purple-400', bg: 'bg-purple-950/20'
   },
-  // 15. AHORCADO
+  // 16. AHORCADO
   {
     id: 'hangman', title: 'EL AHORCADO', slogan: 'ADIVINA O MUERE', href: '/game/hangman', 
     icon: Skull, color: 'rose', border: 'border-rose-600', shadow: 'shadow-rose-600/20', text: 'text-rose-500', bg: 'bg-rose-950/20'
   },
-  // 16. BUSCAMINAS
+  // 17. BUSCAMINAS
   {
     id: 'mines', title: 'BUSCAMINAS', slogan: 'RIESGO PURO', href: '/game/minesweeper', 
     icon: Bomb, color: 'pink', border: 'border-pink-500', shadow: 'shadow-pink-500/20', text: 'text-pink-400', bg: 'bg-pink-950/20'
   },
-  // 17. BLACKJACK
+  // 18. BLACKJACK
   {
     id: 'blackjack', title: 'BLACKJACK', slogan: 'DESAFÍA LA BANCA', href: '/game/blackjack', 
     icon: DollarSign, color: 'emerald', border: 'border-emerald-500', shadow: 'shadow-emerald-500/20', text: 'text-emerald-400', bg: 'bg-emerald-950/20'
   },
-  // 18. NEON SLOTS
+  // 19. NEON SLOTS
   {
     id: 'slots', 
     title: 'NEON SLOTS', 
@@ -182,7 +195,7 @@ const GAMES = [
     href: '/game/slots', 
     icon: Zap, color: 'violet', border: 'border-violet-500', shadow: 'shadow-violet-500/20', text: 'text-violet-400', bg: 'bg-violet-950/20'
   },
-  // 19. SIMÓN DICE
+  // 20. SIMÓN DICE
   {
     id: 'simon', 
     title: 'SIMÓN DICE', 
@@ -195,7 +208,7 @@ const GAMES = [
     text: 'text-yellow-400', 
     bg: 'bg-yellow-950/20'
   },
-  // 20. AJEDREZ
+  // 21. AJEDREZ
   {
     id: 'chess', 
     title: 'AJEDREZ', 
@@ -208,12 +221,12 @@ const GAMES = [
     text: 'text-purple-400', 
     bg: 'bg-purple-950/20'
   },
-  // 21. TIENDA
+  // 22. TIENDA
   {
     id: 'shop', title: 'TIENDA', slogan: 'SKINS & UPGRADES', href: '/shop', 
     icon: ShoppingCart, color: 'indigo', border: 'border-indigo-500', shadow: 'shadow-indigo-500/20', text: 'text-indigo-400', bg: 'bg-indigo-950/20'
   },
-  // 22. RANKING
+  // 23. RANKING
   {
     id: 'ranking', title: 'RANKING', slogan: 'TOP MUNDIAL', href: '/leaderboard', 
     icon: Trophy, color: 'amber', border: 'border-amber-500', shadow: 'shadow-amber-500/20', text: 'text-amber-400', bg: 'bg-amber-950/20'
@@ -228,7 +241,7 @@ const LoginScreen = () => {
   const [showLangMenu, setShowLangMenu] = useState(false);
 
   // Seleccionamos traducción o fallback a español
-  const t = TRANSLATIONS[lang] || TRANSLATIONS.es;
+  const t = TRANSLATIONS[lang as keyof typeof TRANSLATIONS] || TRANSLATIONS.es;
 
   const handleGoogle = async () => {
     setLoading(true); setError('');
@@ -309,7 +322,7 @@ const LoginScreen = () => {
 };
 
 // --- 2. COMPONENTE DASHBOARD ---
-const Dashboard = ({ user }) => {
+const Dashboard = ({ user }: { user: any }) => {
   const { playSound } = useAudio();
   const { coins } = useEconomy(); 
 
@@ -364,7 +377,7 @@ const Dashboard = ({ user }) => {
     if (section) section.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const SoundLink = ({ href, className, children, onClick }) => (
+  const SoundLink = ({ href, className, children, onClick }: any) => (
     <Link 
       href={href} 
       className={className}
