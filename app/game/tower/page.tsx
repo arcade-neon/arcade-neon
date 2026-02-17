@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { 
   ArrowLeft, Play, RotateCcw, Trophy, Hammer, Heart, 
   Share2, MessageCircle, Home, CheckCircle, Users, Bot, Video, 
-  ShoppingBag, Coins, Lock, Loader2, X, AlertCircle
+  ShoppingBag, Coins, Lock, Loader2, X, AlertCircle, Gem, Crown, Zap
 } from 'lucide-react';
 import { useAudio } from '@/contexts/AudioContext'; 
 import GameRanking from '@/components/GameRanking';
@@ -15,9 +15,9 @@ import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace'; 
 
-// --- CONFIGURACIÓN BASE ---
+// --- CONFIGURACIÓN FÍSICA ---
 const CONFIG = {
-    BASE_BLOCK_WIDTH: 100, // Ancho base (se escala según pantalla)
+    BASE_BLOCK_WIDTH: 100, 
     BASE_BLOCK_HEIGHT: 80,
     GRAVITY: 10,
     SWING_SPEED_BASE: 0.035, 
@@ -26,12 +26,16 @@ const CONFIG = {
     CAMERA_SPEED: 0.1 
 };
 
-// --- ITEMS DE LA TIENDA ---
+// --- TIENDA PREMIUM EXPANDIDA ---
 const SHOP_ITEMS = [
-    { id: 'default', name: 'Hormigón', price: 0, color: '#94a3b8', type: 'skin' },
-    { id: 'gold', name: 'Rascacielos de Oro', price: 1000, color: '#fbbf24', type: 'skin' },
-    { id: 'cyber', name: 'Cyber Neon', price: 500, color: '#ec4899', type: 'skin' },
-    { id: 'eco', name: 'Eco Madera', price: 250, color: '#78350f', type: 'skin' },
+    { id: 'default', name: 'Hormigón', price: 0, color: '#94a3b8', type: 'skin', rarity: 'common' },
+    { id: 'eco', name: 'Eco Madera', price: 250, color: '#78350f', type: 'skin', rarity: 'common' },
+    { id: 'cyber', name: 'Cyber Neon', price: 500, color: '#ec4899', type: 'skin', rarity: 'rare' },
+    { id: 'gold', name: 'Lingote de Oro', price: 1000, color: '#fbbf24', type: 'skin', rarity: 'epic' },
+    { id: 'ruby', name: 'Rubí Sangre', price: 1500, color: '#ef4444', type: 'skin', rarity: 'epic' },
+    { id: 'toxic', name: 'Residuo Tóxico', price: 2000, color: '#a3e635', type: 'skin', rarity: 'rare' },
+    { id: 'obsidian', name: 'Obsidiana Pura', price: 3000, color: '#1e293b', type: 'skin', rarity: 'legendary' },
+    { id: 'diamond', name: 'Cristal Diamante', price: 5000, color: '#bae6fd', type: 'skin', rarity: 'legendary' },
 ];
 
 function GameContent() {
@@ -67,7 +71,6 @@ function GameContent() {
   const requestRef = useRef<number>();
   const { playSound } = useAudio();
 
-  // Factor de escala para móviles (Zoom)
   const scaleRef = useRef(1);
 
   // Motor del juego
@@ -208,13 +211,10 @@ function GameContent() {
         return;
     }
 
-    // Calcular centro basado en el tamaño real del canvas lógico
-    // Importante: El canvas.width aquí es el tamaño interno
     const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
     const logicalHeight = canvas.height / (window.devicePixelRatio || 1);
     const centerX = logicalWidth / 2;
-    const groundY = logicalHeight - 150; // Margen inferior para que se vea el suelo
-
+    const groundY = logicalHeight - 150; 
     const scaledWidth = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
 
     gameRef.current = {
@@ -235,9 +235,8 @@ function GameContent() {
       setGameState('PLAYING'); 
   };
 
-  // --- DIBUJADO ---
+  // --- DIBUJADO DE EDIFICIOS PREMIUM ---
   const drawBuildingBlock = (ctx: CanvasRenderingContext2D, x: number, y: number, isPerfect: boolean, isMoving: boolean, skin: string) => {
-      // Ajustar tamaño al factor de escala
       const w = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
       const h = CONFIG.BASE_BLOCK_HEIGHT * scaleRef.current;
 
@@ -252,6 +251,7 @@ function GameContent() {
       let balconyColor = '#1e293b';
       let strokeColor = '#334155';
 
+      // PALETAS DE COLORES PREMIUM
       if (skin === 'gold') {
           mainColor1 = '#fde047'; mainColor2 = '#d97706';
           windowColor = '#fef3c7'; balconyColor = '#78350f'; strokeColor = '#b45309';
@@ -260,10 +260,22 @@ function GameContent() {
           windowColor = '#22d3ee'; balconyColor = '#4c1d95'; strokeColor = '#f0abfc';
       } else if (skin === 'eco') {
           mainColor1 = '#a3e635'; mainColor2 = '#3f6212';
-          windowColor = '#bae6fd'; balconyColor = '#365314';
+          windowColor = '#bae6fd'; balconyColor = '#365314'; strokeColor = '#1a2e05';
+      } else if (skin === 'ruby') {
+          mainColor1 = '#f87171'; mainColor2 = '#991b1b';
+          windowColor = '#fecaca'; balconyColor = '#450a0a'; strokeColor = '#7f1d1d';
+      } else if (skin === 'obsidian') {
+          mainColor1 = '#334155'; mainColor2 = '#0f172a';
+          windowColor = '#6366f1'; balconyColor = '#000000'; strokeColor = '#94a3b8';
+      } else if (skin === 'diamond') {
+          mainColor1 = '#e0f2fe'; mainColor2 = '#7dd3fc';
+          windowColor = '#ffffff'; balconyColor = '#0284c7'; strokeColor = '#38bdf8';
+      } else if (skin === 'toxic') {
+          mainColor1 = '#d9f99d'; mainColor2 = '#65a30d';
+          windowColor = '#a3e635'; balconyColor = '#1a2e05'; strokeColor = '#365314';
       }
 
-      if (isPerfect) mainColor1 = '#fef08a';
+      if (isPerfect) mainColor1 = '#fff'; // Brillo extra
 
       const gradient = ctx.createLinearGradient(x, y, x + w, y);
       gradient.addColorStop(0, mainColor1);
@@ -290,7 +302,6 @@ function GameContent() {
     if (!canvas) return;
     const state = gameRef.current;
     
-    // Ancho lógico
     const logicalWidth = canvas.width / (window.devicePixelRatio || 1);
     const scaledWidth = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
     const scaledHeight = CONFIG.BASE_BLOCK_HEIGHT * scaleRef.current;
@@ -304,7 +315,6 @@ function GameContent() {
         const offsetX = Math.sin(state.time) * swingRange;
         
         state.currentBlock.x = centerX + offsetX - (scaledWidth / 2);
-        // La cuerda se ajusta para que el bloque esté siempre visible arriba
         state.currentBlock.y = (CONFIG.ROPE_HEIGHT + Math.abs(Math.cos(state.time) * 15)) - state.cameraY; 
     }
 
@@ -314,7 +324,6 @@ function GameContent() {
         const landingY = prevBlock.y - scaledHeight;
 
         if (state.currentBlock.y >= landingY) {
-            // Tolerancia ajustada a la escala
             const overlapTolerance = 15 * scaleRef.current;
             const overlap = (state.currentBlock.x + scaledWidth > prevBlock.x + overlapTolerance) && 
                             (state.currentBlock.x < prevBlock.x + scaledWidth - overlapTolerance);
@@ -343,11 +352,7 @@ function GameContent() {
                     perfect: isPerfect
                 });
 
-                // La cámara sube cada vez que apilamos
-                if (state.stack.length > 2) {
-                     state.targetCameraY += scaledHeight;
-                }
-                
+                if (state.stack.length > 2) state.targetCameraY += scaledHeight;
                 state.swingSpeed = Math.min(0.12, CONFIG.SWING_SPEED_BASE + (state.stack.length * 0.002));
                 state.currentBlock = { x: logicalWidth / 2, y: -100, state: 'SWINGING' };
 
@@ -383,18 +388,21 @@ function GameContent() {
     if (!ctx) return;
     const state = gameRef.current;
     
-    // Limpiar usando el tamaño real
     const logicalWidth = canvas.width / window.devicePixelRatio;
     const logicalHeight = canvas.height / window.devicePixelRatio;
 
     ctx.clearRect(0, 0, logicalWidth, logicalHeight);
 
-    // Fondo
+    // Fondo degradado elegante
     const gradient = ctx.createLinearGradient(0, 0, 0, logicalHeight);
     if (state.skin === 'cyber') {
-        gradient.addColorStop(0, '#2e1065'); gradient.addColorStop(1, '#4c1d95');
+        gradient.addColorStop(0, '#0f172a'); gradient.addColorStop(1, '#4c1d95');
     } else if (state.skin === 'gold') {
-        gradient.addColorStop(0, '#422006'); gradient.addColorStop(1, '#713f12');
+        gradient.addColorStop(0, '#271a0c'); gradient.addColorStop(1, '#573a18');
+    } else if (state.skin === 'obsidian') {
+        gradient.addColorStop(0, '#020617'); gradient.addColorStop(1, '#1e293b');
+    } else if (state.skin === 'diamond') {
+        gradient.addColorStop(0, '#0c4a6e'); gradient.addColorStop(1, '#0284c7');
     } else {
         gradient.addColorStop(0, '#0f172a'); gradient.addColorStop(1, '#334155');
     }
@@ -404,10 +412,10 @@ function GameContent() {
     ctx.save();
     ctx.translate(0, state.cameraY);
 
-    // Suelo Dinámico (se calcula en base al primer bloque del stack)
+    // Suelo
     const groundY = state.stack[0].y + (CONFIG.BASE_BLOCK_HEIGHT * scaleRef.current);
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(0, groundY, logicalWidth, 200);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, groundY, logicalWidth, 500);
 
     state.stack.forEach(block => {
         drawBuildingBlock(ctx, block.x, block.y, block.perfect, false, state.skin);
@@ -419,17 +427,16 @@ function GameContent() {
 
     ctx.restore();
 
-    // Grúa
     if (state.currentBlock.state === 'SWINGING') {
         const originX = logicalWidth / 2;
         const blockDrawY = state.currentBlock.y + state.cameraY;
         const scaledWidth = CONFIG.BASE_BLOCK_WIDTH * scaleRef.current;
 
         ctx.beginPath();
-        ctx.moveTo(originX, 0); // Origen en el techo visual
+        ctx.moveTo(originX, 0); 
         ctx.lineTo(state.currentBlock.x + scaledWidth/2, blockDrawY);
         ctx.strokeStyle = '#94a3b8';
-        ctx.lineWidth = 4 * scaleRef.current;
+        ctx.lineWidth = 3 * scaleRef.current;
         ctx.stroke();
 
         drawBuildingBlock(ctx, state.currentBlock.x, blockDrawY, false, true, state.skin);
@@ -471,12 +478,9 @@ function GameContent() {
               const dpr = window.devicePixelRatio || 1;
               canvas.width = rect.width * dpr;
               canvas.height = rect.height * dpr;
-              
               const ctx = canvas.getContext('2d');
               ctx?.scale(dpr, dpr);
 
-              // Calcular escala basada en ancho de pantalla
-              // Si es muy estrecha (<400px), reducimos los bloques
               if (rect.width < 350) scaleRef.current = 0.7;
               else if (rect.width < 450) scaleRef.current = 0.85;
               else scaleRef.current = 1.0;
@@ -495,7 +499,6 @@ function GameContent() {
   return (
     <div className="fixed inset-0 bg-slate-900 flex justify-center items-center overflow-hidden touch-none select-none">
         
-        {/* CONTENEDOR PRINCIPAL FLEX */}
         <div className="relative w-full h-full max-w-[500px] bg-gradient-to-b from-sky-900 to-slate-900 shadow-2xl overflow-hidden flex flex-col">
             
             {/* 1. HUD SUPERIOR */}
@@ -531,9 +534,15 @@ function GameContent() {
             {/* 3. MENÚS OVERLAY */}
             {gameState === 'MENU' && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-30 p-6 text-center">
+                    
+                    {/* BOTÓN VOLVER ATRÁS AL ARCADE */}
+                    <Link href="/" className="absolute top-6 left-6 p-3 bg-slate-800/80 rounded-full border border-slate-700 text-white hover:bg-slate-700 z-50">
+                        <ArrowLeft size={24} />
+                    </Link>
+
                     <Hammer size={64} className="text-yellow-400 mb-4 animate-bounce" />
                     {challengeData ? (
-                        <div className="mb-6 bg-slate-800 p-6 rounded-3xl border-2 border-yellow-500 w-full max-w-xs">
+                        <div className="mb-6 bg-slate-800 p-6 rounded-3xl border-2 border-yellow-500 w-full max-w-xs shadow-2xl">
                             <h2 className="text-xl font-black text-white">Reto de {challengeData.name}</h2>
                             <p className="text-3xl font-black text-white">{challengeData.target} <span className="text-xs text-yellow-500">PISOS</span></p>
                             <button onClick={() => initGame('SOLO')} className="mt-4 w-full bg-yellow-500 text-black font-black py-3 rounded-xl">ACEPTAR</button>
@@ -541,7 +550,7 @@ function GameContent() {
                     ) : (
                         <div className="w-full max-w-xs space-y-3">
                             <h1 className="text-4xl font-black text-white italic tracking-tighter mb-4">CONSTRUCCIONES</h1>
-                            <button onClick={() => setGameState('MODE_SELECT')} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center justify-center gap-2">
+                            <button onClick={() => setGameState('MODE_SELECT')} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.4)] flex items-center justify-center gap-2 transition-transform hover:scale-105">
                                 <Play fill="black" size={20}/> JUGAR
                             </button>
                             <div className="grid grid-cols-2 gap-3">
@@ -558,29 +567,30 @@ function GameContent() {
             )}
 
             {gameState === 'MODE_SELECT' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 p-6">
-                    <h2 className="text-xl font-black text-white mb-6 uppercase">ELIGE MODO</h2>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 p-6 animate-in zoom-in">
+                    <h2 className="text-xl font-black text-white mb-6 uppercase tracking-widest">ELIGE MODO</h2>
                     <div className="w-full max-w-xs space-y-3">
-                        <button onClick={() => initGame('SOLO')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center"><Hammer className="text-yellow-400"/> <span className="font-bold text-white">SOLITARIO</span></button>
-                        <button onClick={() => initGame('VS_AI')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center"><Bot className="text-red-400"/> <span className="font-bold text-white">VS IA</span></button>
-                        <button onClick={() => initGame('VS_FRIEND')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center"><Users className="text-green-400"/> <span className="font-bold text-white">RETAR AMIGO</span></button>
+                        <button onClick={() => initGame('SOLO')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center hover:border-yellow-500 transition-colors"><Hammer className="text-yellow-400"/> <span className="font-bold text-white">SOLITARIO</span></button>
+                        <button onClick={() => initGame('VS_AI')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center hover:border-red-500 transition-colors"><Bot className="text-red-400"/> <span className="font-bold text-white">VS IA</span></button>
+                        <button onClick={() => initGame('VS_FRIEND')} className="w-full bg-slate-800 p-4 rounded-xl border border-slate-600 flex gap-4 items-center hover:border-green-500 transition-colors"><Users className="text-green-400"/> <span className="font-bold text-white">RETAR AMIGO</span></button>
                     </div>
-                    <button onClick={() => setGameState('MENU')} className="mt-8 text-slate-500 text-sm font-bold flex gap-2"><ArrowLeft size={16}/> VOLVER</button>
+                    <button onClick={() => setGameState('MENU')} className="mt-8 text-slate-500 text-sm font-bold flex gap-2 hover:text-white"><ArrowLeft size={16}/> VOLVER</button>
                 </div>
             )}
 
             {gameState === 'MULTIPLAYER_LOBBY' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 p-6 text-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 z-40 p-6 text-center animate-in fade-in">
                     <h2 className="text-xl font-black text-white mb-2">SALA CREADA</h2>
                     <div className="bg-slate-800 p-6 rounded-3xl border border-green-500 mb-6 w-full max-w-xs">
                         <div className="text-4xl font-mono font-black text-green-400 tracking-widest">{roomCode}</div>
                     </div>
                     <button onClick={() => { setGameMode('SOLO'); setGameState('PLAYING'); }} className="text-white font-bold underline mt-4">Jugar Solo</button>
+                    <button onClick={() => setGameState('MENU')} className="mt-8 text-red-400 text-sm font-bold flex gap-2 hover:text-red-300"><X size={16}/> CANCELAR</button>
                 </div>
             )}
 
             {gameState === 'GAMEOVER' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-30 p-4">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-30 p-4 animate-in zoom-in">
                     <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 flex flex-col items-center mb-4 shadow-2xl w-full max-w-xs relative overflow-hidden">
                         <span className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Pisos</span>
                         <div className="text-6xl font-black text-white mb-1">{score}</div>
@@ -593,8 +603,8 @@ function GameContent() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 w-full max-w-xs mb-4">
-                        <button onClick={watchAdForLife} className="bg-purple-600/20 border border-purple-500/50 text-purple-300 p-3 rounded-xl flex flex-col items-center"><Video size={20}/> <span className="text-[10px] font-black uppercase">+1 VIDA</span></button>
-                        <button className="bg-blue-600/20 border border-blue-500/50 text-blue-300 p-3 rounded-xl flex flex-col items-center"><Bot size={20}/> <span className="text-[10px] font-black uppercase">PISTA</span></button>
+                        <button onClick={watchAdForLife} className="bg-purple-600/20 border border-purple-500/50 text-purple-300 p-3 rounded-xl flex flex-col items-center hover:bg-purple-600/40 transition-colors"><Video size={20}/> <span className="text-[10px] font-black uppercase">+1 VIDA</span></button>
+                        <button className="bg-blue-600/20 border border-blue-500/50 text-blue-300 p-3 rounded-xl flex flex-col items-center hover:bg-blue-600/40 transition-colors"><Bot size={20}/> <span className="text-[10px] font-black uppercase">PISTA</span></button>
                     </div>
 
                     <div className="flex gap-3 w-full max-w-xs mb-4">
@@ -602,7 +612,7 @@ function GameContent() {
                         <button onClick={() => initGame(gameMode)} className="bg-yellow-500 text-black font-black py-3 px-6 rounded-xl flex-[2] flex items-center justify-center gap-2"><RotateCcw size={20} /> OTRA VEZ</button>
                     </div>
 
-                     <button onClick={() => shareOnWhatsapp(score)} className="w-full max-w-xs bg-[#25D366] text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg">
+                     <button onClick={() => shareOnWhatsapp(score)} className="w-full max-w-xs bg-[#25D366] text-white font-black py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:bg-[#20bd5a]">
                         <MessageCircle size={20}/> RETAR CONTACTO
                     </button>
                 </div>
@@ -618,34 +628,45 @@ function GameContent() {
                 <div className="absolute inset-0 z-50 bg-black/95 flex flex-col p-6 animate-in slide-in-from-bottom">
                      {/* CABECERA TIENDA CON FLECHA ATRÁS */}
                      <div className="flex justify-between items-center mb-6">
-                        <button onClick={() => setShowShop(false)} className="bg-slate-800 p-2 rounded-full hover:bg-slate-700 transition-colors">
+                        <button onClick={() => setShowShop(false)} className="bg-slate-800 p-2 rounded-full hover:bg-slate-700 transition-colors border border-slate-700">
                             <ArrowLeft className="text-white" size={24} />
                         </button>
-                        <h2 className="text-2xl font-black text-white flex gap-2"><ShoppingBag className="text-pink-500"/> TIENDA</h2>
-                        <div className="w-10"></div> {/* Espaciador para centrar título */}
+                        <h2 className="text-2xl font-black text-white flex gap-2 items-center"><Crown className="text-yellow-500" fill="gold"/> TIENDA</h2>
+                        <div className="w-10"></div>
                      </div>
 
-                     <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700 mb-6 flex justify-between items-center">
+                     <div className="bg-slate-900 p-4 rounded-2xl border border-slate-700 mb-6 flex justify-between items-center shadow-lg">
                         <span className="text-slate-400 font-bold text-xs uppercase">Tus Monedas</span>
-                        <span className="text-yellow-400 font-black text-xl flex gap-2 items-center"><Coins/> {userCoins}</span>
+                        <span className="text-yellow-400 font-black text-xl flex gap-2 items-center"><Coins className="fill-yellow-500"/> {userCoins}</span>
                      </div>
-                     <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-20">
+                     <div className="grid grid-cols-2 gap-4 overflow-y-auto pb-20 custom-scrollbar">
                         {SHOP_ITEMS.map(item => {
                             const owned = inventory.includes(item.id);
                             const equipped = equippedSkin === item.id;
+                            const isLegendary = item.rarity === 'legendary';
+                            const isEpic = item.rarity === 'epic';
+                            
+                            let borderClass = 'border-slate-700';
+                            if (equipped) borderClass = 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]';
+                            else if (isLegendary) borderClass = 'border-blue-400/50 shadow-[0_0_10px_rgba(96,165,250,0.2)]';
+                            else if (isEpic) borderClass = 'border-yellow-500/50';
+
                             return (
-                                <div key={item.id} className={`bg-slate-800 p-4 rounded-2xl border-2 flex flex-col items-center gap-3 ${equipped ? 'border-emerald-500' : 'border-slate-700'}`}>
-                                    <div className="w-12 h-12 rounded shadow-lg" style={{background: item.color}}></div>
-                                    <div className="text-center">
+                                <div key={item.id} className={`bg-slate-800 p-4 rounded-2xl border-2 flex flex-col items-center gap-3 relative overflow-hidden group ${borderClass}`}>
+                                    {isLegendary && <div className="absolute top-0 right-0 bg-blue-500 text-[8px] font-black text-white px-2 py-1 rounded-bl-lg">LEGENDARIO</div>}
+                                    {isEpic && <div className="absolute top-0 right-0 bg-yellow-600 text-[8px] font-black text-white px-2 py-1 rounded-bl-lg">ÉPICO</div>}
+                                    
+                                    <div className="w-12 h-12 rounded shadow-lg transform group-hover:scale-110 transition-transform" style={{background: item.color}}></div>
+                                    <div className="text-center z-10">
                                         <div className="text-white font-bold text-sm">{item.name}</div>
-                                        {!owned && <div className="text-yellow-400 text-xs font-bold">{item.price} Monedas</div>}
+                                        {!owned && <div className="text-yellow-400 text-xs font-bold">{item.price} <Coins size={10} className="inline"/></div>}
                                     </div>
                                     <button 
                                         onClick={() => handleBuyOrEquip(item)}
                                         disabled={buyingItem === item.id}
-                                        className={`w-full py-2 rounded-lg text-xs font-black uppercase ${equipped ? 'bg-emerald-500 text-black' : owned ? 'bg-slate-700 text-white' : 'bg-yellow-500 text-black'}`}
+                                        className={`w-full py-2 rounded-lg text-xs font-black uppercase transition-all ${equipped ? 'bg-emerald-500 text-black cursor-default' : owned ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-yellow-500 text-black hover:bg-yellow-400'}`}
                                     >
-                                        {equipped ? 'USANDO' : owned ? 'EQUIPAR' : 'COMPRAR'}
+                                        {buyingItem === item.id ? <Loader2 className="animate-spin mx-auto" size={12}/> : equipped ? 'USANDO' : owned ? 'EQUIPAR' : 'COMPRAR'}
                                     </button>
                                 </div>
                             )
