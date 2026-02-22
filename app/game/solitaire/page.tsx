@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, Trophy, Users, Play, RefreshCw, 
-  Layers, Spade, Club, Heart, Diamond, Coins, MessageSquare, Hand, Crown, MoveHorizontal, RotateCcw
+  Layers, Spade, Club, Heart, Diamond, Coins, MessageSquare, Hand, Crown, MoveHorizontal, RotateCcw, Timer, Cloud, Check
 } from 'lucide-react';
 import { db, auth } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -43,6 +43,11 @@ export default function SolitairePro() {
   const [moves, setMoves] = useState(0);
   const [gameMode, setGameMode] = useState('easy');
   const [gameWon, setGameWon] = useState(false);
+  
+  // ESTADOS: Tiempo y Guardado
+  const [seconds, setSeconds] = useState(0);
+  const [isActive, setIsActive] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // DATA
   const [leaderboard, setLeaderboard] = useState([]);
@@ -69,6 +74,23 @@ export default function SolitairePro() {
     fetchLeaderboard();
     return () => unsubscribe();
   }, []);
+
+  // --- CRONÓMETRO ---
+  useEffect(() => {
+    let interval = null;
+    if (isActive && !gameWon) {
+      interval = setInterval(() => setSeconds(s => s + 1), 1000);
+    } else if (!isActive && seconds !== 0) {
+      clearInterval(interval);
+    }
+    return () => clearInterval(interval);
+  }, [isActive, gameWon, seconds]);
+
+  const formatTime = (totalSeconds: number) => {
+    const m = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // --- SYNC ONLINE ---
   useEffect(() => {
@@ -113,7 +135,10 @@ export default function SolitairePro() {
       setFoundations({ hearts: [], diamonds: [], clubs: [], spades: [] });
       setScore(0);
       setMoves(0);
+      setSeconds(0);
+      setIsActive(false);
       setSelectedCard(null);
+      setSaveStatus('idle');
       setView('menu');
   };
 
@@ -165,12 +190,16 @@ export default function SolitairePro() {
       setTableau(newTableau);
       setScore(0);
       setMoves(0);
+      setSeconds(0);
       setGameWon(false);
+      setIsActive(true);
+      setSaveStatus('idle');
       setSelectedCard(null);
   };
 
   // --- MECÁNICAS ---
   const drawCard = () => {
+      if (gameWon) return;
       playSound('card');
       if (deck.length === 0) {
           const newDeck = [...waste].reverse().map(c => ({...c, faceUp: false}));
@@ -186,6 +215,7 @@ export default function SolitairePro() {
   };
 
   const handleCardClick = (card, location, colIdx = null) => {
+      if (gameWon) return;
       if (!card) return;
       if (!card.faceUp && location === 'tableau') return;
       if (!card.faceUp) return;
@@ -204,6 +234,7 @@ export default function SolitairePro() {
   };
 
   const handleEmptyColClick = (colIdx) => {
+      if (gameWon) return;
       if (selectedCard) {
           attemptMove(selectedCard, { location: 'tableau', colIdx, card: null });
       }
@@ -219,6 +250,8 @@ export default function SolitairePro() {
           const col = tableau[from.colIdx];
           const idx = col.findIndex(c => c.id === from.card.id);
           cardsToMove = col.slice(idx);
+      } else if (from.location === 'foundation') {
+          cardsToMove = [from.card];
       }
 
       const leaderCard = cardsToMove[0];
@@ -246,6 +279,7 @@ export default function SolitairePro() {
 
       if (valid) {
           playSound('card');
+
           if (from.location === 'waste') {
               setWaste(prev => prev.slice(0, -1));
           } else if (from.location === 'tableau') {
@@ -254,11 +288,18 @@ export default function SolitairePro() {
                   const col = newTab[from.colIdx];
                   const cutIdx = col.findIndex(c => c.id === from.card.id);
                   newTab[from.colIdx] = col.slice(0, cutIdx);
+                  
                   if (newTab[from.colIdx].length > 0) {
                       const last = newTab[from.colIdx][newTab[from.colIdx].length - 1];
                       if (!last.faceUp) last.faceUp = true;
                   }
                   return newTab;
+              });
+          } else if (from.location === 'foundation') {
+              setFoundations(prev => {
+                  const newFoundations = { ...prev };
+                  newFoundations[from.colIdx] = newFoundations[from.colIdx].slice(0, -1);
+                  return newFoundations;
               });
           }
 
@@ -268,20 +309,22 @@ export default function SolitairePro() {
                   newTab[to.colIdx] = [...newTab[to.colIdx], ...cardsToMove];
                   return newTab;
               });
-              setScore(s => s + 5);
+              if (from.location === 'foundation') setScore(s => Math.max(0, s - 15)); 
+              else setScore(s => s + 5);
+
           } else if (to.location === 'foundation') {
               setFoundations(prev => ({
                   ...prev,
                   [leaderCard.suit]: [...prev[leaderCard.suit], leaderCard]
               }));
-              setScore(s => s + 10);
-              checkWin();
+              setScore(s => s + 15);
+              setTimeout(checkWinCondition, 100); 
           }
 
           setMoves(m => m + 1);
           setSelectedCard(null);
           
-          if (view === 'pvp_game') updateOnlineScore(score + (to.location==='foundation'?10:5));
+          if (view === 'pvp_game') updateOnlineScore(score + (to.location==='foundation'?15:5));
 
       } else {
           playSound('error');
@@ -290,17 +333,64 @@ export default function SolitairePro() {
   };
 
   const autoStack = (card, fromLoc, colIdx) => {
+      if (gameWon) return;
+      if (fromLoc === 'foundation') return; 
+      
       const suit = card.suit;
       const pile = foundations[suit];
       const top = pile[pile.length - 1];
       let canMove = false;
+      
       if (!top && card.value === 1) canMove = true;
       if (top && top.value === card.value - 1) canMove = true;
+      
       if (canMove) attemptMove({ location: fromLoc, colIdx, card }, { location: 'foundation', colIdx: suit });
   };
 
-  const checkWin = () => {
-      // Implementación visual
+  const checkWinCondition = () => {
+      setFoundations(currentFoundations => {
+          const isWon = Object.values(currentFoundations).every(pile => pile.length === 13);
+          if (isWon) {
+              handleWin();
+          }
+          return currentFoundations;
+      });
+  };
+
+  const handleWin = async () => {
+      setGameWon(true);
+      setIsActive(false);
+      playSound('win'); 
+      
+      const timeBonus = Math.max(0, 500 - seconds);
+      const modeBonus = MODES[gameMode].bonus;
+      const finalScore = score + timeBonus + modeBonus;
+      
+      setScore(finalScore);
+
+      if (user) {
+          setSaveStatus('saving');
+          try {
+              await addDoc(collection(db, "scores_solitaire"), {
+                  uid: user.uid,
+                  displayName: user.name,
+                  score: finalScore,
+                  time: seconds,
+                  moves: moves,
+                  mode: gameMode,
+                  date: serverTimestamp()
+              });
+              
+              const coinsEarned = Math.floor(finalScore / 10);
+              await addCoins(coinsEarned, "Victoria Solitario");
+              
+              setSaveStatus('saved');
+              fetchLeaderboard();
+          } catch (e) {
+              console.error("Error guardando score:", e);
+              setSaveStatus('error');
+          }
+      }
   };
 
   const updateOnlineScore = async (newScore) => {
@@ -345,7 +435,11 @@ export default function SolitairePro() {
   };
 
   const fetchLeaderboard = async () => {
-    try { const q = query(collection(db, "scores_solitaire"), orderBy("score", "desc"), limit(5)); const s = await getDocs(q); setLeaderboard(s.docs.map(d=>d.data())); } catch(e){}
+    try { 
+        const q = query(collection(db, "scores_solitaire"), orderBy("score", "desc"), limit(5)); 
+        const s = await getDocs(q); 
+        setLeaderboard(s.docs.map(d=>d.data())); 
+    } catch(e){ console.error(e); }
   };
 
   // --- RENDERIZADO DE CARTAS PROFESIONAL ---
@@ -368,6 +462,7 @@ export default function SolitairePro() {
                 ${card.faceUp ? 'bg-white' : 'bg-slate-900 border-2 border-cyan-500/50'}
                 ${isSelected ? 'ring-4 ring-yellow-400 z-50 -translate-y-2' : 'hover:-translate-y-1 hover:shadow-xl'}
                 ${overlapped ? '-mt-16 sm:-mt-24 md:-mt-28' : ''}
+                ${gameWon ? 'animate-bounce' : ''}
             `}
           >
               {card.faceUp ? (
@@ -390,9 +485,7 @@ export default function SolitairePro() {
                       </div>
                   </div>
               ) : (
-                  // Dorso de Carta Cyberpunk (LIMPIO)
                   <div className="w-full h-full rounded-md bg-slate-900 overflow-hidden relative border border-slate-700">
-                      {/* Patrón de Rejilla Hexagonal (CSS) */}
                       <div className="absolute inset-0 opacity-30" 
                            style={{ backgroundImage: 'radial-gradient(#22d3ee 1.5px, transparent 1.5px)', backgroundSize: '12px 12px' }}>
                       </div>
@@ -406,29 +499,81 @@ export default function SolitairePro() {
     <div className="min-h-screen bg-[#050b14] flex flex-col items-center p-2 font-mono text-white select-none overflow-x-hidden">
         
         {/* FONDO AMBIENTAL */}
-        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-[#050b14] to-black opacity-80"></div>
+        <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 via-[#050b14] to-black opacity-80 z-0"></div>
 
-        {/* HEADER */}
-        <div className="w-full max-w-[1600px] flex justify-between items-center mb-4 z-10 mt-4 px-4">
-            <button onClick={handleBack} className="p-3 bg-slate-900/80 backdrop-blur-sm rounded-full border border-slate-700 hover:border-blue-500 transition shadow-lg group">
-                <ArrowLeft className="w-5 h-5 text-slate-400 group-hover:text-blue-400"/>
-            </button>
-            <div className="text-center">
-                <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 italic tracking-tighter uppercase drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
-                    SOLITARIO
-                </h1>
-                <p className="text-[10px] text-blue-500/80 font-bold tracking-[0.6em] uppercase">CYBER DECK PRO</p>
+        {/* --- MODAL VICTORIA --- */}
+        {gameWon && (
+            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center animate-in zoom-in p-4">
+                <div className="bg-slate-900 border border-yellow-500/50 p-8 rounded-3xl w-full max-w-sm text-center shadow-[0_0_50px_rgba(234,179,8,0.2)]">
+                    <Trophy className="w-20 h-20 text-yellow-400 mx-auto mb-4 animate-bounce" />
+                    <h2 className="text-4xl font-black text-white italic tracking-tighter mb-6">¡SOLITARIO COMPLETADO!</h2>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="bg-black/50 p-3 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">SCORE FINAL</p>
+                            <p className="text-2xl font-black text-yellow-400 font-mono">{score}</p>
+                        </div>
+                        <div className="bg-black/50 p-3 rounded-xl border border-slate-700">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1">TIEMPO</p>
+                            <p className="text-2xl font-black text-cyan-400 font-mono">{formatTime(seconds)}</p>
+                        </div>
+                    </div>
+
+                    <div className="h-6 flex items-center justify-center mb-6">
+                        {saveStatus === 'saving' && <span className="text-cyan-400 text-xs flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin"/> GUARDANDO...</span>}
+                        {saveStatus === 'saved' && <span className="text-emerald-500 text-xs font-bold flex items-center gap-2"><Check className="w-3 h-3"/> RÉCORD GUARDADO</span>}
+                    </div>
+
+                    <button onClick={exitGame} className="w-full py-4 bg-white text-black font-black rounded-xl hover:scale-105 transition shadow-lg uppercase tracking-widest">
+                        CONTINUAR
+                    </button>
+                </div>
+            </div>
+        )}
+
+        {/* --- HEADER PRINCIPAL REORGANIZADO (3 COLUMNAS) --- */}
+        <div className="w-full max-w-[1600px] grid grid-cols-3 items-center mb-4 z-10 mt-4 px-4 gap-4">
+            
+            {/* IZQUIERDA: Botón atrás y Título (Oculto en móvil pequeño) */}
+            <div className="flex items-center gap-4 col-span-1 justify-start">
+                <button onClick={handleBack} className="p-3 bg-slate-900/80 backdrop-blur-sm rounded-full border border-slate-700 hover:border-blue-500 transition shadow-lg group">
+                    <ArrowLeft className="w-5 h-5 text-slate-400 group-hover:text-blue-400"/>
+                </button>
+                <div className="hidden md:block">
+                    <h1 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-teal-400 italic tracking-tighter uppercase drop-shadow-[0_0_15px_rgba(34,211,238,0.3)]">
+                        SOLITARIO
+                    </h1>
+                </div>
             </div>
             
-            {/* MARGEN AÑADIDO: mr-16 PARA MOVER EL GRUPO A LA IZQUIERDA */}
-            <div className="flex gap-2 mr-16">
-                <button onClick={() => initGame(gameMode)} className="p-3 bg-slate-900/80 backdrop-blur-sm rounded-full border border-slate-700 hover:border-yellow-500 transition shadow-lg">
-                    <RotateCcw className="w-5 h-5 text-yellow-500"/>
-                </button>
-                <div className="bg-slate-900/80 backdrop-blur-sm px-5 py-2 rounded-full border border-slate-700 flex items-center gap-3 shadow-lg">
-                    <span className="text-[10px] text-slate-500 font-bold">SCORE</span>
-                    <span className="text-xl font-black text-blue-400 font-mono">{score}</span>
-                </div>
+            {/* CENTRO: SCORE, TIEMPO Y REINICIAR (NUEVO DISEÑO CONJUNTO) */}
+            <div className="flex justify-center items-center gap-2 sm:gap-3 col-span-1 whitespace-nowrap">
+                {(view === 'pve' || view === 'pvp_game') && (
+                    <>
+                        <div className="flex bg-slate-900/90 backdrop-blur-md rounded-full border border-slate-700 shadow-lg overflow-hidden divide-x divide-slate-700">
+                            {/* SCORE */}
+                            <div className="px-3 sm:px-4 py-2 flex items-center gap-1 sm:gap-2">
+                                <Crown className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-500" />
+                                <span className="text-base sm:text-lg font-black text-yellow-400 font-mono tracking-wider">{score}</span>
+                            </div>
+                            {/* TIMER */}
+                            <div className="px-3 sm:px-4 py-2 flex items-center gap-1 sm:gap-2 bg-black/30">
+                                <Timer className="w-3 h-3 sm:w-4 sm:h-4 text-cyan-400" />
+                                <span className="text-base sm:text-lg font-bold text-white font-mono tracking-wider">{formatTime(seconds)}</span>
+                            </div>
+                        </div>
+                        
+                        {/* BOTÓN REINICIAR (A LA DERECHA DEL TIEMPO) */}
+                        <button onClick={() => initGame(gameMode)} className="p-2 sm:px-4 sm:py-2 bg-slate-900/90 backdrop-blur-md rounded-full border border-slate-700 hover:border-yellow-500 hover:text-yellow-500 transition shadow-lg flex items-center gap-2 text-slate-400 group" title="Reiniciar Partida">
+                            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 group-hover:animate-spin-once"/>
+                            <span className="hidden lg:block text-[10px] font-bold tracking-widest uppercase">Reiniciar</span>
+                        </button>
+                    </>
+                )}
+            </div>
+
+            {/* DERECHA: Columna vacía para equilibrar el grid y mantener el centro exacto */}
+            <div className="flex justify-end col-span-1">
             </div>
         </div>
 
@@ -464,11 +609,14 @@ export default function SolitairePro() {
 
                 {leaderboard.length > 0 && (
                     <div className="bg-black/40 backdrop-blur-sm p-6 rounded-3xl border border-white/5 mt-4">
-                        <h3 className="text-[10px] text-slate-500 uppercase font-bold mb-3 flex gap-2 items-center tracking-widest"><Crown className="w-3 h-3 text-yellow-500"/> Ranking Global</h3>
+                        <h3 className="text-[10px] text-slate-500 uppercase font-bold mb-3 flex gap-2 items-center tracking-widest"><Crown className="w-3 h-3 text-yellow-500"/> Ranking Global (Puntuación & Tiempo)</h3>
                         {leaderboard.map((s,i) => (
-                            <div key={i} className="flex justify-between text-xs text-slate-400 border-b border-white/5 py-2 last:border-0">
-                                <span className="font-bold text-white">#{i+1} {s.displayName}</span>
-                                <span className="text-blue-400 font-mono font-black">{s.score}</span>
+                            <div key={i} className="flex justify-between items-center text-xs text-slate-400 border-b border-white/5 py-2 last:border-0">
+                                <span className="font-bold text-white truncate max-w-[150px]">#{i+1} {s.displayName}</span>
+                                <div className="text-right flex items-center gap-2">
+                                    <span className="text-[10px] font-mono text-cyan-500">{formatTime(s.time || 0)}</span>
+                                    <span className="text-blue-400 font-mono font-black">{s.score}</span>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -476,8 +624,9 @@ export default function SolitairePro() {
             </div>
         )}
 
+        {/* SETUP PVP */}
         {view === 'pvp_setup' && (
-            <div className="w-full max-w-md bg-slate-900/90 border border-slate-700 p-8 rounded-3xl animate-in fade-in mt-10 shadow-2xl backdrop-blur-md">
+            <div className="w-full max-w-md bg-slate-900/90 border border-slate-700 p-8 rounded-3xl animate-in fade-in mt-10 shadow-2xl backdrop-blur-md relative z-10">
                 <h2 className="text-2xl font-black text-center mb-8 text-white uppercase italic tracking-widest">¿QUÉ APOSTAMOS?</h2>
                 <div className="flex gap-3 mb-8">
                     <button onClick={() => setBetType('money')} className={`flex-1 py-4 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border-2 transition-all ${betType==='money' ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400' : 'bg-slate-950 border-slate-800 text-slate-500 hover:border-slate-600'}`}><Coins className="w-6 h-6"/> MONEDAS</button>
@@ -496,8 +645,9 @@ export default function SolitairePro() {
             </div>
         )}
 
+        {/* JOIN PVP */}
         {view === 'pvp_join' && (
-            <div className="w-full max-w-md bg-slate-900 p-8 rounded-3xl border border-slate-700 animate-in fade-in mt-10 shadow-2xl backdrop-blur-md">
+            <div className="w-full max-w-md bg-slate-900 p-8 rounded-3xl border border-slate-700 animate-in fade-in mt-10 shadow-2xl backdrop-blur-md relative z-10">
                 <h2 className="text-sm font-bold mb-4 text-center text-slate-400 uppercase tracking-widest">CÓDIGO DE SALA</h2>
                 <input type="number" id="code-input" placeholder="0000" className="w-full bg-black/50 border-2 border-slate-700 rounded-2xl p-6 text-center text-5xl font-black text-white mb-8 outline-none focus:border-cyan-500 tracking-[0.2em]"/>
                 <button onClick={() => joinRoom(document.getElementById('code-input').value)} className="w-full py-4 bg-white text-black font-black rounded-xl hover:scale-105 transition shadow-lg uppercase tracking-widest">ENTRAR AL DUELO</button>
@@ -505,17 +655,17 @@ export default function SolitairePro() {
             </div>
         )}
 
+        {/* ÁREA DE JUEGO */}
         {(view === 'pve' || view === 'pvp_game') && (
-            <div className="w-full max-w-[1600px] flex flex-col items-center flex-grow z-10">
+            <div className="w-full max-w-[1600px] flex flex-col items-center flex-grow z-10 relative mt-2">
                 
-                {/* HUD PVP */}
+                {/* HUD INFO RIVAL PVP */}
                 {view === 'pvp_game' && (
-                    <div className="w-full max-w-xl flex justify-between items-center mb-6 bg-slate-900/90 px-6 py-3 rounded-full border border-slate-700 shadow-xl backdrop-blur-md">
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-widest">TÚ: <span className="text-blue-400 text-lg ml-2">{score}</span></span>
-                        <div className="text-[10px] text-slate-500 font-bold bg-black/50 px-3 py-1 rounded border border-slate-800 flex items-center gap-2">
-                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {roomCode}
-                        </div>
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-widest text-right">{opName}: <span className="text-red-400 text-lg ml-2">{opScore}</span></span>
+                    <div className="w-full max-w-xl flex justify-between items-center mb-6 bg-slate-900/90 px-6 py-2 rounded-full border border-slate-700 shadow-xl backdrop-blur-md">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">SALA <span className="text-green-400 ml-1">{roomCode}</span></span>
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2">
+                            {opName} <span className="text-red-400 bg-red-950/50 px-2 py-1 rounded font-mono">{opScore}</span>
+                        </span>
                     </div>
                 )}
 
@@ -542,7 +692,9 @@ export default function SolitairePro() {
                                 
                                 {/* Descartes */}
                                 {waste.length > 0 ? (
-                                    <Card card={waste[waste.length - 1]} loc="waste" />
+                                    <div className="relative">
+                                        <Card card={waste[waste.length - 1]} loc="waste" />
+                                    </div>
                                 ) : (
                                     <div className="w-16 h-24 sm:w-20 sm:h-32 md:w-24 md:h-36 border-2 border-dashed border-slate-700 rounded-xl opacity-30"></div>
                                 )}
@@ -563,7 +715,7 @@ export default function SolitairePro() {
                                          className="relative w-16 h-24 sm:w-20 sm:h-32 md:w-24 md:h-36 bg-slate-800/30 rounded-xl border-2 border-slate-700 flex items-center justify-center hover:bg-slate-800/50 transition cursor-pointer"
                                     >
                                         {topCard ? (
-                                            <Card card={topCard} loc="foundation" />
+                                            <Card card={topCard} loc="foundation" colIdx={suit} />
                                         ) : (
                                             <SuitIcon className="w-8 h-8 text-slate-700 opacity-40"/>
                                         )}
@@ -585,13 +737,16 @@ export default function SolitairePro() {
                 </div>
                 
                 {/* Scroll Hint para móviles */}
-                <div className="md:hidden flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2 animate-pulse pb-4">
-                    <MoveHorizontal className="w-4 h-4"/> Desliza para ver más
+                <div className="md:hidden flex items-center justify-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-2 animate-pulse pb-24">
+                    <MoveHorizontal className="w-4 h-4"/> Desliza para ver el tablero completo
                 </div>
             </div>
         )}
 
-        <div className="mt-auto w-full max-w-md pt-4 opacity-75"><AdSpace type="banner" /><GameChat gameId={view.includes('pvp') ? roomCode : "global_solitaire"} gameName="SOLITARIO" /></div>
+        <div className="fixed bottom-0 w-full z-50 pointer-events-auto bg-[#020617] border-t border-slate-800">
+            <AdSpace type="banner" />
+        </div>
+        
     </div>
   );
 }
