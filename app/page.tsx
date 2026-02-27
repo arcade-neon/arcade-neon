@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -8,11 +7,11 @@ import {
   Grid3X3, Video, Ghost, Swords, Layers, 
   Skull, Activity, Bomb, LayoutList, ShoppingCart,
   Brain, Circle, Anchor, DollarSign, Share2, Zap, Coins, Plus, Disc, Crown,
-  GripHorizontal, LogOut, Globe, Save, Loader2, Edit3, Hammer, MessageCircle // <--- AQUÍ ESTÁ EL ARREGLO
+  GripHorizontal, LogOut, Globe, Save, Loader2, Edit3, Hammer, MessageCircle
 } from 'lucide-react';
 import { auth, googleProvider, db } from '@/lib/firebase';
 import { signInWithPopup, signInAnonymously, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import AdSpace from '@/components/AdSpace';
 import { useAudio } from '@/contexts/AudioContext';
 import { useEconomy } from '@/contexts/EconomyContext';
@@ -343,6 +342,26 @@ const Dashboard = ({ user }: { user: any }) => {
   const [showNicknameModal, setShowNicknameModal] = useState(false);
   const [nickname, setNickname] = useState('');
   const [savingNick, setSavingNick] = useState(false);
+  // --- ESTADOS PARA EL RANKING ---
+  const [topPlayers, setTopPlayers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTopPlayers = async () => {
+      try {
+        // Buscamos en la colección "users" a los 3 con más "xp" (experiencia) o monedas
+        const q = query(collection(db, "users"), orderBy("coins", "desc"), limit(3));
+        const querySnapshot = await getDocs(q);
+        const players: any[] = [];
+        querySnapshot.forEach((doc) => {
+          players.push({ id: doc.id, ...doc.data() });
+        });
+        setTopPlayers(players);
+      } catch (error) {
+        console.error("Error cargando ranking:", error);
+      }
+    };
+    fetchTopPlayers();
+  }, []);
 
   // EFECTO: AL ENTRAR, REVISAR SI TIENE APODO
   useEffect(() => {
@@ -516,7 +535,54 @@ const Dashboard = ({ user }: { user: any }) => {
             </div>
          </div>
       </div>
+{/* SECCIÓN RANKING TOP 3 (CONECTADA A FIREBASE) */}
+      <div className="w-full max-w-[1400px] mb-12">
+         <div className="flex justify-between items-end mb-6 px-2">
+            <h2 className="text-sm font-bold text-slate-400 flex items-center gap-2 uppercase tracking-widest">
+              <Crown className="w-4 h-4 text-yellow-500"/> Top Jugadores
+            </h2>
+            <Link href="/leaderboard" className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest transition-colors">
+               Ver Ranking Global &rarr;
+            </Link>
+         </div>
+         
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Top 2 */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden group hover:border-slate-600 transition-colors order-2 md:order-1 mt-0 md:mt-8 shadow-lg">
+                <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-slate-500 to-transparent opacity-50"></div>
+                <div className="w-16 h-16 rounded-full border-2 border-slate-500 mb-3 overflow-hidden">
+                    <img src={topPlayers[1]?.photoURL || "https://api.dicebear.com/7.x/avataaars/svg?seed=P2"} alt="Top 2" className="w-full h-full object-cover bg-slate-800" />
+                </div>
+                <div className="bg-slate-800 text-slate-300 text-xs font-black px-3 py-1 rounded-full mb-2 border border-slate-700">#2</div>
+                <h3 className="text-white font-black text-lg uppercase tracking-wider">{topPlayers[1]?.nickname || "---"}</h3>
+                <p className="text-slate-400 text-xs font-bold mt-1">{topPlayers[1]?.coins || 0} PTS</p>
+            </div>
 
+            {/* Top 1 */}
+            <div className="bg-gradient-to-b from-slate-900 to-slate-900/50 border border-yellow-500/30 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden group hover:border-yellow-500/50 transition-colors shadow-[0_0_30px_rgba(234,179,8,0.1)] order-1 md:order-2">
+                <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent"></div>
+                <Crown className="w-8 h-8 text-yellow-500 mb-2 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
+                <div className="w-20 h-20 rounded-full border-4 border-yellow-500 mb-3 overflow-hidden shadow-[0_0_20px_rgba(234,179,8,0.3)]">
+                    <img src={topPlayers[0]?.photoURL || "https://api.dicebear.com/7.x/avataaars/svg?seed=P1"} alt="Top 1" className="w-full h-full object-cover bg-slate-800" />
+                </div>
+                <div className="bg-yellow-500 text-black text-xs font-black px-4 py-1 rounded-full mb-2 shadow-lg">#1</div>
+                <h3 className="text-white font-black text-xl uppercase tracking-wider">{topPlayers[0]?.nickname || "---"}</h3>
+                <p className="text-yellow-400 text-sm font-bold mt-1">{topPlayers[0]?.coins || 0} PTS</p>
+            </div>
+
+            {/* Top 3 */}
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col items-center justify-center relative overflow-hidden group hover:border-orange-900/50 transition-colors order-3 mt-0 md:mt-8 shadow-lg">
+                <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-transparent via-orange-800 to-transparent opacity-50"></div>
+                <div className="w-16 h-16 rounded-full border-2 border-orange-800 mb-3 overflow-hidden">
+                    <img src={topPlayers[2]?.photoURL || "https://api.dicebear.com/7.x/avataaars/svg?seed=P3"} alt="Top 3" className="w-full h-full object-cover bg-slate-800" />
+                </div>
+                <div className="bg-slate-800 text-slate-300 text-xs font-black px-3 py-1 rounded-full mb-2 border border-slate-700">#3</div>
+                <h3 className="text-white font-black text-lg uppercase tracking-wider">{topPlayers[2]?.nickname || "---"}</h3>
+                <p className="text-slate-400 text-xs font-bold mt-1">{topPlayers[2]?.coins || 0} PTS</p>
+            </div>
+         </div>
+      </div>
+      
       {/* GRID DE JUEGOS */}
       <div id="games-section" className="w-full max-w-[1400px] pb-20">
          <div className="flex items-center gap-4 mb-6 px-2">
