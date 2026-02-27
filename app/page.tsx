@@ -582,7 +582,7 @@ const Dashboard = ({ user }: { user: any }) => {
             </div>
          </div>
       </div>
-      
+
       {/* GRID DE JUEGOS */}
       <div id="games-section" className="w-full max-w-[1400px] pb-20">
          <div className="flex items-center gap-4 mb-6 px-2">
@@ -640,7 +640,7 @@ const Dashboard = ({ user }: { user: any }) => {
 
 // --- 3. COMPONENTE PRINCIPAL (CONTROLADOR DE FLUJO) ---
 export default function Home() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
